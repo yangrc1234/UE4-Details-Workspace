@@ -68,7 +68,7 @@ TSharedRef<SDockTab> FFlexibleDetailsWorkspaceModule::OnSpawnPluginTab(const FSp
 
 	// Root tab.
 	// It doesn't change.
-	return CreateDetailsWorkSpace();
+	return CreateDetailsWorkSpace(SpawnTabArgs.GetOwnerWindow(), TEXT("Default"), true);
 }
 
 void FFlexibleDetailsWorkspaceModule::PluginButtonClicked()
