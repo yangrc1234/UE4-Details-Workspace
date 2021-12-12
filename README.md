@@ -10,6 +10,8 @@ This could be useful, if you're doing some work that require many actor/componen
 
 > UE4 actually has a built-in window named "Env. Light Mixer", but it only supports hard-coded objects, and doesn't allow changing the layout.  
  
+Currently it's only tested on 4.27. But it's mostly plain slate code, so I suppose any UE version will work.
+
 ## Features  
 * Any actor/component/asset is supported.  
 * Layouts can be saved/loaded(Including in-level actor/components). 
