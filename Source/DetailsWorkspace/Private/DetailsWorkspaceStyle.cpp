@@ -1,14 +1,14 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "FlexibleDetailsWorkspaceStyle.h"
+#include "DetailsWorkspaceStyle.h"
 #include "Styling/SlateStyleRegistry.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Slate/SlateGameResources.h"
 #include "Interfaces/IPluginManager.h"
 
-TSharedPtr< FSlateStyleSet > FFlexibleDetailsWorkspaceStyle::StyleInstance = NULL;
+TSharedPtr< FSlateStyleSet > FDetailsWorkspaceStyle::StyleInstance = NULL;
 
-void FFlexibleDetailsWorkspaceStyle::Initialize()
+void FDetailsWorkspaceStyle::Initialize()
 {
 	if (!StyleInstance.IsValid())
 	{
@@ -17,16 +17,16 @@ void FFlexibleDetailsWorkspaceStyle::Initialize()
 	}
 }
 
-void FFlexibleDetailsWorkspaceStyle::Shutdown()
+void FDetailsWorkspaceStyle::Shutdown()
 {
 	FSlateStyleRegistry::UnRegisterSlateStyle(*StyleInstance);
 	ensure(StyleInstance.IsUnique());
 	StyleInstance.Reset();
 }
 
-FName FFlexibleDetailsWorkspaceStyle::GetStyleSetName()
+FName FDetailsWorkspaceStyle::GetStyleSetName()
 {
-	static FName StyleSetName(TEXT("FlexibleDetailsWorkspaceStyle"));
+	static FName StyleSetName(TEXT("DetailsWorkspaceStyle"));
 	return StyleSetName;
 }
 
@@ -40,12 +40,12 @@ const FVector2D Icon16x16(16.0f, 16.0f);
 const FVector2D Icon20x20(20.0f, 20.0f);
 const FVector2D Icon40x40(40.0f, 40.0f);
 
-TSharedRef< FSlateStyleSet > FFlexibleDetailsWorkspaceStyle::Create()
+TSharedRef< FSlateStyleSet > FDetailsWorkspaceStyle::Create()
 {
-	TSharedRef< FSlateStyleSet > Style = MakeShareable(new FSlateStyleSet("FlexibleDetailsWorkspaceStyle"));
-	Style->SetContentRoot(IPluginManager::Get().FindPlugin("FlexibleDetailsWorkspace")->GetBaseDir() / TEXT("Resources"));
+	TSharedRef< FSlateStyleSet > Style = MakeShareable(new FSlateStyleSet("DetailsWorkspaceStyle"));
+	Style->SetContentRoot(IPluginManager::Get().FindPlugin("DetailsWorkspace")->GetBaseDir() / TEXT("Resources"));
 
-	Style->Set("FlexibleDetailsWorkspace.OpenPluginWindow", new IMAGE_BRUSH(TEXT("ButtonIcon_40x"), Icon40x40));
+	Style->Set("DetailsWorkspace.OpenPluginWindow", new IMAGE_BRUSH(TEXT("ButtonIcon_40x"), Icon40x40));
 
 	return Style;
 }
@@ -56,7 +56,7 @@ TSharedRef< FSlateStyleSet > FFlexibleDetailsWorkspaceStyle::Create()
 #undef TTF_FONT
 #undef OTF_FONT
 
-void FFlexibleDetailsWorkspaceStyle::ReloadTextures()
+void FDetailsWorkspaceStyle::ReloadTextures()
 {
 	if (FSlateApplication::IsInitialized())
 	{
@@ -64,7 +64,7 @@ void FFlexibleDetailsWorkspaceStyle::ReloadTextures()
 	}
 }
 
-const ISlateStyle& FFlexibleDetailsWorkspaceStyle::Get()
+const ISlateStyle& FDetailsWorkspaceStyle::Get()
 {
 	return *StyleInstance;
 }

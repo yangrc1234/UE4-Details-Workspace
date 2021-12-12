@@ -8,7 +8,7 @@
 class FToolBarBuilder;
 class FMenuBuilder;
 
-class FFlexibleDetailsWorkspaceModule : public IModuleInterface
+class FDetailsWorkspaceModule : public IModuleInterface
 {
 public:
 

@@ -2,9 +2,9 @@
 
 using UnrealBuildTool;
 
-public class FlexibleDetailsWorkspace : ModuleRules
+public class DetailsWorkspace : ModuleRules
 {
-	public FlexibleDetailsWorkspace(ReadOnlyTargetRules Target) : base(Target)
+	public DetailsWorkspace(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
 		
