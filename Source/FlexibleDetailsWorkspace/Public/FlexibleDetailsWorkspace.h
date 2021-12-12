@@ -21,7 +21,9 @@ public:
 	
 private:
 
-	void RegisterMenus();
+	//void RegisterMenus();
+	void AddMenuEntry(FMenuBuilder& MenuBuilder);
+	TSharedPtr<FExtender> MenuExtender;
 
 	TSharedRef<class SDockTab> OnSpawnPluginTab(const class FSpawnTabArgs& SpawnTabArgs);
 

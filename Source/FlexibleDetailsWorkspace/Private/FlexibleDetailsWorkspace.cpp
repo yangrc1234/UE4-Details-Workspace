@@ -31,21 +31,39 @@ void FFlexibleDetailsWorkspaceModule::StartupModule()
 		FExecuteAction::CreateRaw(this, &FFlexibleDetailsWorkspaceModule::PluginButtonClicked),
 		FCanExecuteAction());
 
-	UToolMenus::RegisterStartupCallback(FSimpleMulticastDelegate::FDelegate::CreateRaw(this, &FFlexibleDetailsWorkspaceModule::RegisterMenus));
-	
 	FGlobalTabmanager::Get()->RegisterNomadTabSpawner(FlexibleDetailsWorkspaceTabName, FOnSpawnTab::CreateRaw(this, &FFlexibleDetailsWorkspaceModule::OnSpawnPluginTab))
 		.SetDisplayName(LOCTEXT("FFlexibleDetailsWorkspaceTabTitle", "FlexibleDetailsWorkspace"))
-		.SetMenuType(ETabSpawnerMenuType::Hidden);
+	.SetMenuType(ETabSpawnerMenuType::Hidden);
+	
+
+	{
+		MenuExtender = MakeShareable(new FExtender);
+		MenuExtender->AddMenuExtension("LevelEditor", 
+                                            EExtensionHook::After, 
+                                            PluginCommands, 
+                                            FMenuExtensionDelegate::CreateRaw(this, &FFlexibleDetailsWorkspaceModule::AddMenuEntry));
+
+		FLevelEditorModule& LevelEditorModule = FModuleManager::LoadModuleChecked<FLevelEditorModule>("LevelEditor");
+		LevelEditorModule.GetMenuExtensibilityManager()->AddExtender(MenuExtender);
+	}
+}
+
+void FFlexibleDetailsWorkspaceModule::AddMenuEntry(FMenuBuilder& MenuBuilder)
+{
+	MenuBuilder.BeginSection("DetailsWorkspace", TAttribute<FText>(LOCTEXT("DetailsWorkspace", "Details Workspace")));
+	MenuBuilder.AddMenuEntry(
+		LOCTEXT("OpenDetailsWorkspace", "Open Details Workspace"),
+		FText::GetEmpty(),
+		FSlateIcon(),
+		FUIAction(FExecuteAction::CreateRaw(this, &FFlexibleDetailsWorkspaceModule::PluginButtonClicked))
+	);
+	MenuBuilder.EndSection();
 }
 
 void FFlexibleDetailsWorkspaceModule::ShutdownModule()
 {
-	// This function may be called during shutdown to clean up your module.  For modules that support dynamic reloading,
-	// we call this function before unloading the module.
-
-	UToolMenus::UnRegisterStartupCallback(this);
-
-	UToolMenus::UnregisterOwner(this);
+	FLevelEditorModule& LevelEditorModule = FModuleManager::LoadModuleChecked<FLevelEditorModule>("LevelEditor");
+	LevelEditorModule.GetMenuExtensibilityManager()->RemoveExtender(MenuExtender);
 
 	FFlexibleDetailsWorkspaceStyle::Shutdown();
 
@@ -62,31 +80,6 @@ TSharedRef<SDockTab> FFlexibleDetailsWorkspaceModule::OnSpawnPluginTab(const FSp
 void FFlexibleDetailsWorkspaceModule::PluginButtonClicked()
 {
 	FGlobalTabmanager::Get()->TryInvokeTab(FlexibleDetailsWorkspaceTabName);
-}
-
-void FFlexibleDetailsWorkspaceModule::RegisterMenus()
-{
-	// Owner will be used for cleanup in call to UToolMenus::UnregisterOwner
-	FToolMenuOwnerScoped OwnerScoped(this);
-
-	{
-		UToolMenu* Menu = UToolMenus::Get()->ExtendMenu("LevelEditor.MainMenu.Window");
-		{
-			FToolMenuSection& Section = Menu->FindOrAddSection("WindowLayout");
-			Section.AddMenuEntryWithCommandList(FFlexibleDetailsWorkspaceCommands::Get().OpenPluginWindow, PluginCommands);
-		}
-	}
-
-	{
-		UToolMenu* ToolbarMenu = UToolMenus::Get()->ExtendMenu("LevelEditor.LevelEditorToolBar");
-		{
-			FToolMenuSection& Section = ToolbarMenu->FindOrAddSection("Settings");
-			{
-				FToolMenuEntry& Entry = Section.AddEntry(FToolMenuEntry::InitToolBarButton(FFlexibleDetailsWorkspaceCommands::Get().OpenPluginWindow));
-				Entry.SetCommandList(PluginCommands);
-			}
-		}
-	}
 }
 
 #undef LOCTEXT_NAMESPACE

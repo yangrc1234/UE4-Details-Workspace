@@ -26,7 +26,8 @@ public class FlexibleDetailsWorkspace : ModuleRules
 			new string[]
 			{
 				"Core",
-				// ... add other public dependencies that you statically link with here ...
+				"Slate",
+				"SlateCore",
 			}
 			);
 			
@@ -34,14 +35,13 @@ public class FlexibleDetailsWorkspace : ModuleRules
 		PrivateDependencyModuleNames.AddRange(
 			new string[]
 			{
+				"ApplicationCore",
 				"Projects",
 				"InputCore",
 				"UnrealEd",
 				"ToolMenus",
 				"CoreUObject",
 				"Engine",
-				"Slate",
-				"SlateCore",
 				"EditorWidgets",
 				"EditorStyle",
 				"PropertyEditor"

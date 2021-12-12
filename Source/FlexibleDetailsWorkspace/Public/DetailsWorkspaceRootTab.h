@@ -23,26 +23,51 @@ struct FDetailWorkspaceObservedItem
 
 	static FDetailWorkspaceObservedItem From(UObject* Object);
 
-	UObject* Resolve()
+	UObject* Resolve(bool bTryResolvePIECounterPart)
 	{
 		if (!SavedObject.Get())
 			return nullptr;
-		
-		if (!ResolvedObject.IsValid())
+
+		auto Actor = Cast<AActor>(SavedObject.Get());
+		if (Actor && bTryResolvePIECounterPart && ensure(GEditor->IsPlayingSessionInEditor()))
 		{
-			if (!bIsDefaultSubObject)
+			if (!ResolvedObjectPIE.IsValid())
 			{
-				ResolvedObject = SavedObject.Get();
+				Actor = EditorUtilities::GetSimWorldCounterpartActor(Actor);
+				if (ensure(Actor))
+				{
+					if (!bIsDefaultSubObject)
+					{
+						ResolvedObjectPIE = Actor;
+					}
+					else
+					{
+						ResolvedObjectPIE = Actor->GetDefaultSubobjectByName(SubObjectName);
+					}
+				}
 			}
-			else
-			{
-				ResolvedObject = SavedObject->GetDefaultSubobjectByName(SubObjectName);
-			}
+			return ResolvedObjectPIE.Get();
 		}
-		return ResolvedObject.Get();
+		else
+		{
+			if (!ResolvedObject.IsValid())
+			{
+				if (!bIsDefaultSubObject)
+				{
+					ResolvedObject = SavedObject.Get();
+				}
+				else
+				{
+					ResolvedObject = SavedObject->GetDefaultSubobjectByName(SubObjectName);
+				}
+			}
+
+			return ResolvedObject.Get();
+		}
 	}
 
 	TWeakObjectPtr<UObject> ResolvedObject = nullptr;
+	TWeakObjectPtr<UObject> ResolvedObjectPIE = nullptr;
 
 	UPROPERTY(EditAnywhere)
 	TLazyObjectPtr<UObject> SavedObject = nullptr;
@@ -86,6 +111,8 @@ public:
     
 };
 
+class SAnyObjectDetails;
+
 class FLEXIBLEDETAILSWORKSPACE_API SDetailsWorkspaceRootTab : public SDockTab  
 {
 public:
@@ -110,6 +137,7 @@ protected:
 	TSharedRef<SDockTab> CreateWelcomeTab(const FSpawnTabArgs& Args);
 	void Restore(const FDetailsWorkspaceLayout& Profile);
 	void DumpCurrentLayout(FDetailsWorkspaceLayout& OutTarget);
+	bool EnableAutoPIE() const;
 	EVisibility DropAreaVisibility() const;
 	FText GetLabel() const;
 
@@ -131,9 +159,12 @@ private:
 	void EnsureRegisterDetailTabSpawner(FName TabID);
 	void DeleteLayoutWithDialog(FString LayoutName);
 	FReply OnObserveObjectDrop(TSharedPtr<FDragDropOperation> Op);
+	void OnDetailTabClosed(TSharedRef<SDockTab> Tab, TWeakPtr<SAnyObjectDetails> Detail);
+	EVisibility DeveloperTextVisibility() const;
 	TWeakPtr<SDetailsWorkspaceRootTab> Root;
-	TArray<TWeakPtr<class SAnyObjectDetails>> SpawnedDetails;
+	TArray<TWeakPtr<SAnyObjectDetails>> SpawnedDetails;
 	TSharedRef<SWidget> CreateConfigArea();
+	FReply CopyCurrentLayoutStringToClipboard();
 	TSharedPtr<SBorder> DockingTabsContainer;
 	void DoPersistVisualState();
 	FText OnGetCurrentLayoutName() const;
@@ -141,6 +172,8 @@ private:
 	void RenameCurrentLayout(FText NewName);
 	void CreateRenameCurrentLayoutWindow();
 
+	TSharedPtr<SCheckBox> DeveloperModeCheckerbox;
+	TSharedPtr<SCheckBox> AutoPIECheckBox;
 	TSharedPtr<SCompoundWidget> LayoutSelectComboButton;
 	TSharedPtr<class SSubObjectAddArea> SubObjectAddArea;
 	TSharedPtr<SExpandableArea> ConfigArea;

@@ -11,6 +11,8 @@
 #include "DragAndDrop/AssetDragDropOp.h"
 #include "Widgets/Layout/SScrollBox.h"
 #include "Widgets/Layout/SExpandableArea.h"
+#include "Widgets/Layout/SGridPanel.h"
+#include "HAL/PlatformApplicationMisc.h"
 
 #define LOCTEXT_NAMESPACE "DetailsWorkSpace"
 
@@ -26,6 +28,10 @@ static FString GetPrettyNameForObject(UObject* Object)
 	if (Object->HasAnyFlags(RF_Transient))
 	{
 		Result = TEXT("(Transient)") + Result;
+	}
+	if (Object->GetWorld() && Object->GetWorld()->WorldType == EWorldType::PIE)
+	{
+		Result = TEXT("(PIE)") + Result;
 	}
 	return Result;
 }
@@ -103,11 +109,12 @@ class SAnyObjectDetails : public SCompoundWidget
 {
 	SLATE_BEGIN_ARGS(SAnyObjectDetails)
 	{}
+	SLATE_ATTRIBUTE(bool, AutoInspectPIE)
 	SLATE_END_ARGS()
 
 	FReply OnSelectObjectClicked()
 	{
-		auto Object = LazyObjectRef.Resolve();
+		auto Object = ObjectValue.Resolve(GEditor->IsPlayingSessionInEditor());
 		if (Object)
 		{
 			GEditor->SelectNone(false, true, false);
@@ -130,10 +137,28 @@ class SAnyObjectDetails : public SCompoundWidget
 		}
 		return FReply::Handled();
 	}
+
+	FText GetHintText() const
+	{
+		if (ObjectValue.SavedObject.IsNull())
+		{
+			return LOCTEXT("DetailObjectDestroyedHint", "Object is detsroyed. Close the tab");
+		}
+		else if (!ObjectValue.SavedObject.IsValid())
+		{
+			return LOCTEXT("DetailObjectNotLoaded", "Object is not loaded yet.");
+		}
+		else
+		{
+			return FText::GetEmpty();
+		}
+	}
 	
 	BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
     void Construct(const FArguments& InArgs, FTabId InTabID)
 	{
+		bAutoInspectPIE = InArgs._AutoInspectPIE;
+		
 		FPropertyEditorModule& PropertyEditorModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
 		FDetailsViewArgs DetailsViewArgs;
 		DetailsViewArgs.bAllowSearch = true;
@@ -146,23 +171,7 @@ class SAnyObjectDetails : public SCompoundWidget
             SNew(SOverlay)
             + SOverlay::Slot()[
                 SNew(STextBlock)
-                .Text_Lambda(
-                    [Self = SharedThis(this)]()
-                    {
-                        if (Self->GetLazyObjectPtr().IsNull())
-                        {
-                            return LOCTEXT("DetailObjectDestroyedHint", "Object is detsroyed. Close the tab");
-                        }
-                        else if (!Self->GetLazyObjectPtr().IsValid())
-                        {
-                            return LOCTEXT("DetailObjectNotLoaded", "Object is not loaded yet.");
-                        }
-                        else
-                        {
-                            return FText::GetEmpty();
-                        }
-                    }
-                )
+                .Text(this, &SAnyObjectDetails::GetHintText)
                 .Visibility(EVisibility::SelfHitTestInvisible)
             ].HAlign(HAlign_Center).VAlign(VAlign_Center)
             + SOverlay::Slot()[
@@ -184,31 +193,42 @@ class SAnyObjectDetails : public SCompoundWidget
             	+ SVerticalBox::Slot()[
 					DetailsView->AsShared()
                 ]
-                .AutoHeight()
             ]
         ];
 	}
 	END_SLATE_FUNCTION_BUILD_OPTIMIZATION
 
-public:
-	TLazyObjectPtr<UObject> GetLazyObjectPtr() { return LazyObjectRef.Resolve(); }
+	UObject* GetObject(bool bPIE) { return ObjectValue.Resolve(bPIE); }
+
+	UObject* GetObjectAuto()
+	{
+		const bool bWantPIE = bAutoInspectPIE.Get() && GEditor->IsPlayingSessionInEditor();
+		return ObjectValue.Resolve(bWantPIE);
+	}
+	
 	void SetObjectLazyPtr(FDetailWorkspaceObservedItem Value)
 	{
-		LazyObjectRef = Value;
-		DetailsView->SetObject(Value.Resolve());
+		ObjectValue = Value;
 	}
+	
 	virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override
 	{
 		SCompoundWidget::Tick(AllottedGeometry, InCurrentTime, InDeltaTime);
-		if (bLoaded != GetLazyObjectPtr().IsValid())
+		
+		auto Expected = GetObjectAuto();
+
+		if (CurrentWatching != Expected)
 		{
-			bLoaded = GetLazyObjectPtr().IsValid();
-			DetailsView->SetObject(GetLazyObjectPtr().Get());
+			CurrentWatching = Expected;
+			DetailsView->SetObject(Expected);
 		}
 	}
 	FTabId TabID;
+
 private:
-	FDetailWorkspaceObservedItem LazyObjectRef;
+	TWeakObjectPtr<UObject> CurrentWatching;
+	TAttribute<bool> bAutoInspectPIE;
+	FDetailWorkspaceObservedItem ObjectValue;
 	TSharedPtr<class IDetailsView> DetailsView;
 	bool bLoaded = false;
 };
@@ -234,12 +254,6 @@ public:
 		ChildSlot[
 			SNew(SHorizontalBox)
 	        + SHorizontalBox::Slot()[
-				SNew(STextBlock).Text(LOCTEXT("LayoutLabel", "Layout"))
-	        ]
-	        .AutoWidth()
-	        .VAlign(VAlign_Center)
-		    .Padding(5.0f)
-	        + SHorizontalBox::Slot()[
                 SAssignNew(ComboButton,  SComboButton)
                     .OnGetMenuContent(
                         FOnGetContent::CreateSP(this, &SLayoutSelectionComboButton::OnGetLayoutSelectMenuContent)
@@ -252,7 +266,6 @@ public:
                     .VAlign(VAlign_Center)
             ]
 	        .AutoWidth()
-		    .Padding(5.0f)
 		];
 
 		OnRenameLayout = Arguments._OnRenameLayout;
@@ -396,14 +409,6 @@ public:
             .Visibility(this, &SSubObjectAddArea::AddObjectButtonVisibility)
             + SHorizontalBox::Slot()
             [
-                SNew(STextBlock)
-                .Text(this, &SSubObjectAddArea::OnGetPendingObservedObjectLabel)
-            ]
-            .AutoWidth()
-            .VAlign(VAlign_Center)
-            .Padding(5.0f)
-            + SHorizontalBox::Slot()
-            [
 	            SNew(SComboButton)
 			        .OnGetMenuContent(FOnGetContent::CreateSP(this, &SSubObjectAddArea::CreateDetailForObjectMenu))
 			        .ButtonContent()
@@ -413,7 +418,6 @@ public:
 			        ]
             ]
             .AutoWidth()
-            .Padding(5.0f)
 		];
 	}
 	
@@ -488,7 +492,6 @@ private:
 	}
 };
 
-
 UObject* UDetailsWorkspaceProfileCollectionFactory::FactoryCreateNew(UClass* Class, UObject* InParent, FName Name,
                                                                      EObjectFlags Flags, UObject* Context, FFeedbackContext* Warn)
 {
@@ -531,6 +534,7 @@ static TSharedRef<FTabManager::FLayout> InitialLayout()
         );
 }
 
+
 TSharedRef<SWidget> SDetailsWorkspaceRootTab::CreateConfigArea()
 {
 	SAssignNew(ConfigArea, SExpandableArea)
@@ -538,51 +542,85 @@ TSharedRef<SWidget> SDetailsWorkspaceRootTab::CreateConfigArea()
 			SNew(STextBlock).Text(LOCTEXT("Config", "Config"))
 		]
 		.BodyContent()[
-			SNew(SVerticalBox)
-	        + SVerticalBox::Slot()[
-	            SAssignNew(LayoutSelectComboButton, SLayoutSelectionComboButton)
+			
+		SNew(SGridPanel)
+            .FillColumn(0, 0.2f)
+            .FillColumn(1, 0.8f)
+            + SGridPanel::Slot(0, 0)[
+                SNew(STextBlock).Text(LOCTEXT("LayoutLabel", "Layout"))
+            ].Padding(2.0f).VAlign(VAlign_Center)
+            + SGridPanel::Slot(1, 0)[	
+				SAssignNew(LayoutSelectComboButton, SLayoutSelectionComboButton)
 	            .OnLayoutDeleteClicked(this, &SDetailsWorkspaceRootTab::DeleteLayoutWithDialog)
 	            .OnCreateNewLayout(this, &SDetailsWorkspaceRootTab::CreateNewLayoutWithDialog)
 	            .OnCreateNewLayoutByCopying(this, &SDetailsWorkspaceRootTab::CreateNewLayoutByCopyingWithDialog)
 	            .OnRenameLayout(this, &SDetailsWorkspaceRootTab::CreateRenameCurrentLayoutWindow)
 	            .SelectedLayoutName(this, &SDetailsWorkspaceRootTab::OnGetCurrentLayoutName)
 	            .OnLayoutSelected(this, &SDetailsWorkspaceRootTab::SwitchLayout, true)
-	        ]
-	        .VAlign(VAlign_Center)
-	        .HAlign(HAlign_Left)
-	        .AutoHeight()
-	        .Padding(2.0f)
-	        + SVerticalBox::Slot()[
-	            SAssignNew(SubObjectAddArea, SSubObjectAddArea)
-	            .OnAddObjectConfirmed(SSubObjectAddArea::FAddObjectConfirmed::CreateSP(this, &SDetailsWorkspaceRootTab::SpawnNewDetailWidgetForObject))
-	            .OnVerifyObjectAddable(SSubObjectAddArea::FVerifyObjectAddable::CreateSP(this, &SDetailsWorkspaceRootTab::IsNotObservingObject))
-	        ]
-	        .AutoHeight()
-	        .VAlign(VAlign_Center)
-	        .HAlign(HAlign_Left)
-	        .Padding(2.0f)
-        ];
-	ConfigArea->SetExpanded(false);
+	        ].Padding(2.0f).VAlign(VAlign_Center)
+	        
+            + SGridPanel::Slot(0, 1)[
+                SNew(STextBlock).Text(LOCTEXT("AutoSwitchPIE", "Auto Switch to PIE Object"))
+            ].Padding(2.0f).VAlign(VAlign_Center)
+            + SGridPanel::Slot(1, 1)[
+                SAssignNew(AutoPIECheckBox, SCheckBox)
+            ].Padding(2.0f).VAlign(VAlign_Center)
 
+            + SGridPanel::Slot(0, 2)[
+            	SNew(STextBlock).Text(LOCTEXT("ObjectToAdd", "Object To Add: "))
+            ].Padding(2.0f).VAlign(VAlign_Center)
+            + SGridPanel::Slot(1, 2)[
+                SAssignNew(SubObjectAddArea, SSubObjectAddArea)
+                .OnAddObjectConfirmed(SSubObjectAddArea::FAddObjectConfirmed::CreateSP(this, &SDetailsWorkspaceRootTab::SpawnNewDetailWidgetForObject))
+                .OnVerifyObjectAddable(SSubObjectAddArea::FVerifyObjectAddable::CreateSP(this, &SDetailsWorkspaceRootTab::IsNotObservingObject))
+            ].Padding(2.0f).VAlign(VAlign_Center)
+
+            + SGridPanel::Slot(0, 3)[
+                SNew(STextBlock).Text(LOCTEXT("EnableDeveloperMode", "Enable Developer Mode"))
+            ].Padding(2.0f).VAlign(VAlign_Center)
+            + SGridPanel::Slot(1, 3)[
+                SAssignNew(DeveloperModeCheckerbox, SCheckBox)
+            ].Padding(2.0f).VAlign(VAlign_Center)
+            
+            + SGridPanel::Slot(0, 4)[
+            	SNew(SButton)
+            	.OnClicked(FOnClicked::CreateSP(this, &SDetailsWorkspaceRootTab::CopyCurrentLayoutStringToClipboard))
+            	[
+					SNew(STextBlock).Text(LOCTEXT("CopyLayoutStringToClipboard", "Copy Layout String To Clipboard"))
+                ]
+            ].Padding(2.0f).VAlign(VAlign_Center)
+        ];
+	AutoPIECheckBox->SetIsChecked(true);
+	ConfigArea->SetExpanded(false);
+	
 	return ConfigArea.ToSharedRef();
+}
+
+FReply SDetailsWorkspaceRootTab::CopyCurrentLayoutStringToClipboard()
+{
+	auto String = TabManager->PersistLayout()->ToString();
+	FPlatformApplicationMisc::ClipboardCopy( *String );
+	FMessageDialog::Open(EAppMsgType::Ok, LOCTEXT("LayoutStringCopied", "Layout string copied"));
+	return FReply::Handled();
 }
 
 void SDetailsWorkspaceRootTab::DoPersistVisualState()
 {
 	auto LocalCollection = UDetailsWorkspaceProfile::GetOrCreateLocalUserProfile();
 	
-	if (!ensure(!InstanceName.TrimStartAndEnd().IsEmpty() && !WorkingLayoutName.TrimStartAndEnd().IsEmpty()))
-		return;
-
 	// Remember opened layout name. 
 	if (LocalCollection)
 	{
-		LocalCollection->Modify();
-		LocalCollection->InstanceLastLayout.FindOrAdd(InstanceName) = WorkingLayoutName;
+		if (!InstanceName.TrimStartAndEnd().IsEmpty())
+		{
+			LocalCollection->Modify();
+			LocalCollection->InstanceLastLayout.FindOrAdd(InstanceName) = WorkingLayoutName;
+		}
 	}
 
 	// Save the layout.  
-	SaveLayout();
+	if (!WorkingLayoutName.TrimStartAndEnd().IsEmpty())
+		SaveLayout();
 }
 
 void SDetailsWorkspaceRootTab::CreateNewLayout(FText LayoutName)
@@ -634,7 +672,7 @@ bool SDetailsWorkspaceRootTab::IsObservingObject(UObject* Object) const
 	for(auto Detail : SpawnedDetails)
 	{
 		auto Pinned = Detail.Pin();
-		if (Pinned && Pinned->GetLazyObjectPtr() == Object)
+		if (Pinned && Pinned->GetObject(false) == Object)
 		{
 			return true;
 		}
@@ -898,33 +936,53 @@ void SDetailsWorkspaceRootTab::DumpCurrentLayout(FDetailsWorkspaceLayout& OutTar
 	for(auto& Tab: SpawnedDetails)
 	{
 		auto Pinned = Tab.Pin();
-		if (Pinned && !Pinned->GetLazyObjectPtr().IsNull() && TabManager->FindExistingLiveTab(Tab.Pin()->TabID))
+		if (Pinned && Pinned->GetObject(false) && TabManager->FindExistingLiveTab(Tab.Pin()->TabID))
 		{
-			auto Object = Pinned->GetLazyObjectPtr().Get();
+			auto Object = Pinned->GetObject(false);
 			if (!Object->HasAnyFlags(RF_Transient))
 				OutTarget.References.Add(Pinned->TabID.TabType, FDetailWorkspaceObservedItem::From(Object));
 		}
 	}
 }
 
+bool SDetailsWorkspaceRootTab::EnableAutoPIE() const
+{
+	return AutoPIECheckBox->IsChecked();	
+}
+
+void SDetailsWorkspaceRootTab::OnDetailTabClosed(TSharedRef<SDockTab> Tab, TWeakPtr<SAnyObjectDetails> Detail)
+{
+	SpawnedDetails.Remove(Detail);
+}
+
+EVisibility SDetailsWorkspaceRootTab::DeveloperTextVisibility() const
+{
+	return DeveloperModeCheckerbox->IsChecked() ? EVisibility::SelfHitTestInvisible : EVisibility::Hidden;
+}
+
 TSharedRef<SDockTab> SDetailsWorkspaceRootTab::CreateDocKTabWithDetailView(const FSpawnTabArgs& Args)
 {
 	auto ID = Args.GetTabId();
-	auto NewObjectDetailWidget = SNew(SAnyObjectDetails, ID);
+	auto NewObjectDetailWidget =
+		SNew(SAnyObjectDetails, ID)
+		.AutoInspectPIE(this, &SDetailsWorkspaceRootTab::EnableAutoPIE)
+	;
+	
 	auto WeakPtrToDetailWidget = TWeakPtr<SAnyObjectDetails>(NewObjectDetailWidget);
 	auto Tab =
         SNew(SDockTab)
         .TabRole(ETabRole::PanelTab)
+		.OnTabClosed(FOnTabClosedCallback::CreateSP(this, &SDetailsWorkspaceRootTab::OnDetailTabClosed, WeakPtrToDetailWidget))
 		.Label_Lambda(
 			[WeakPtrToDetailWidget]()
 			{
 				auto Widget = WeakPtrToDetailWidget.Pin();
 				if (!Widget)
 					return FText::GetEmpty();
-				auto Object = Widget->GetLazyObjectPtr();
-				if (Object.IsValid())
+				auto Object = Widget->GetObjectAuto();
+				if (Object)
 				{
-					return FText::FromString(GetPrettyNameForObject(Object.Get()));
+					return FText::FromString(GetPrettyNameForObject(Object));
 				}
 				else
 				{
@@ -934,7 +992,17 @@ TSharedRef<SDockTab> SDetailsWorkspaceRootTab::CreateDocKTabWithDetailView(const
 		);
 
 	Tab->SetContent(
-        NewObjectDetailWidget
+		SNew(SOverlay)
+		+ SOverlay::Slot()[
+			NewObjectDetailWidget
+        ]
+        + SOverlay::Slot()[
+        	SNew(STextBlock)
+        	.Text(FText::FromString(ID.ToString()))
+        	.Font(FCoreStyle::GetDefaultFontStyle("Regular", 18))
+        	.ShadowOffset(FVector2D(1.0f, 1.0f))
+        	.Visibility(this, &SDetailsWorkspaceRootTab::DeveloperTextVisibility)
+        ].HAlign(HAlign_Center).VAlign(VAlign_Center)
     );
 	
 	SpawnedDetails.Add(NewObjectDetailWidget);
