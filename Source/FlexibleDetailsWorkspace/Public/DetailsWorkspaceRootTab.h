@@ -2,31 +2,6 @@
 
 #include "DetailsWorkspaceRootTab.generated.h"
 
-struct FInspectItem
-{
-	FLazyObjectPtr Object;
-	TSharedPtr<IDetailsView> DetailsView;
-};
-
-class SAnyObjectDetails : public SCompoundWidget
-{
-	SLATE_BEGIN_ARGS(SAnyObjectDetails)
-	{}
-	SLATE_END_ARGS()
-	
-    void Construct(const FArguments& InArgs, FTabId InTabID);
-
-public:
-	TLazyObjectPtr<UObject> GetLazyObjectPtr() const {return LazyObjectRef; }
-	void SetObjectLazyPtr(TLazyObjectPtr<UObject> Value);
-	virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
-	FTabId TabID;
-private:
-	TLazyObjectPtr<UObject> LazyObjectRef;
-	TSharedPtr<class IDetailsView> DetailsView;
-	bool bLoaded = false;
-};
-
 UCLASS(MinimalAPI, hidecategories = Object, collapsecategories)
 class UDetailsWorkspaceProfileCollectionFactory : public UFactory
 {
@@ -127,64 +102,64 @@ public:
     
 };
 
-class SDetailsWorkspaceRootTab : public SDockTab  
+class FLEXIBLEDETAILSWORKSPACE_API SDetailsWorkspaceRootTab : public SDockTab  
 {
 public:
-	FReply OnNewTabClicked();
-
 	SLATE_BEGIN_ARGS(SDetailsWorkspaceRootTab)
 	{}
 	SLATE_END_ARGS()
 
 	~SDetailsWorkspaceRootTab();
 	void Construct(const FArguments& Args, TSharedPtr<SWindow> Window, FString InstanceName, bool bLoadInstanceLastLayout);
-	
+	void ResetLayoutToInitial();
 	void RestoreFromLocalUserLayout(FString LayoutName);
-	void Restore(const FDetailsWorkspaceLayout& Profile);
-	void DumpCurrentLayout(FDetailsWorkspaceLayout& OutTarget);
+	void SpawnNewDetailWidgetForObject(UObject* InObject);
+	bool IsObservingObject(UObject* Object) const;
+	void SwitchLayout(FString TargetLayoutName, bool bSaveBeforeSwitching = true);
+	void CreateNewLayout(FText LayoutName);
+	void CreateNewLayoutByCopyingCurrent(FText LayoutName);
 
 protected:
-	FDetailsWorkspaceLayout LoadedProfile;
 	TSharedRef<SDockTab> CreateDocKTabWithDetailView(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab> CreateWelcomeTab(const FSpawnTabArgs& Args);
-	TSharedPtr<SDockTab> AllocateNewTab(FTabId &OutTabID);
-	EVisibility AddActorComponentsButtonVisibility() const;
-	FReply OnAddActorComponentsClicked();
-	FReply OnAddObjectButtonClicked();
-	EVisibility AddObjectButtonVisibility() const;
-	FText PendingObservedObjectName() const;
-	TSharedRef<SWidget> CreateAddObjectToObserveArea();
-	
+	void Restore(const FDetailsWorkspaceLayout& Profile);
+	void DumpCurrentLayout(FDetailsWorkspaceLayout& OutTarget);
+	EVisibility DropAreaVisibility() const;
+
 	TSharedPtr<FTabManager> TabManager;
-	TWeakObjectPtr<AActor> PickekdActor;
-	TArray<FInspectItem> Items;
 	TWeakPtr<SDockTab> ParentTab;
 	FString InstanceName;
 	FString WorkingLayoutName;
+	FDetailsWorkspaceLayout LoadedProfile;
 
-	// The objeect dropped in drop area. 
-	TWeakObjectPtr<UObject> PendingObservedObject; 
 	
-	bool OnRecognizeObserveObjectDrop(TSharedPtr<FDragDropOperation> Operation);
+	bool OnRecognizeObserveObjectDrop(TSharedPtr<FDragDropOperation> Operation) const;
 	void SaveLayout(FString LayoutName);
 	void SaveLayoutWithDialog(FString LayoutName);
-	void SpawnNewDetailWidgetForObject(UObject* InObject);
 	FName GetUnusedTabTypeName() const;
 
 private:
-	TSharedRef<SWidget> OnAddTargetsMenu();
+	bool IsNotObservingObject(UObject* Object) const
+	{
+		return !IsObservingObject(Object);
+	}
+	void EnsureRegisterDetailTabSpawner(FName TabID);
+	void OnLayoutMenuSelected(const FText& Layout);
+	void DeleteLayoutWithDialog(FString LayoutName);
 	FReply OnObserveObjectDrop(TSharedPtr<FDragDropOperation> Op);
 	TWeakPtr<SDetailsWorkspaceRootTab> Root;
-	TArray<TWeakPtr<SAnyObjectDetails>> SpawnedDetails;
+	TArray<TWeakPtr<class SAnyObjectDetails>> SpawnedDetails;
 	TSharedPtr<SBorder> DockingTabsContainer;
 	void DoPersistVisualState();
-	FReply OnCreateNewLayoutDialogConfirmed(FString LayoutName);
 	void CreateNewLayoutWithDialog();
-	FReply OnLayoutDeleteButton(FString LayoutName);
-	void SwitchLayout(FString TargetLayoutName, bool bSaveBeforeSwitching = true);
-	TSharedRef<SWidget> OnGetLayoutSelectMenuContent();
+	void CreateNewLayoutByCopyingWithDialog();
 	FText OnGetCurrentLayoutName() const;
+
+	void RenameCurrentLayout(FText NewName);
+	void CreateRenameCurrentLayoutWindow();
+
+	TSharedPtr<SComboButton> LayoutSelectComboButton;
+	TSharedPtr<class SSubObjectAddArea> SubObjectAddArea;
 };
 
-
-TSharedRef<SDockTab> CreateDetailsWorkSpace(TSharedPtr<SWindow> Window, FString InstanceName, bool bLoadInstanceLastLayout);
+TSharedRef<SDetailsWorkspaceRootTab> CreateDetailsWorkSpace(TSharedPtr<SWindow> Window, FString InstanceName, bool bLoadInstanceLastLayout);
