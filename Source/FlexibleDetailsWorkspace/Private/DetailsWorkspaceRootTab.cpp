@@ -10,6 +10,7 @@
 #include "DragAndDrop/ActorDragDropOp.h"
 #include "DragAndDrop/AssetDragDropOp.h"
 #include "Widgets/Layout/SScrollBox.h"
+#include "Widgets/Layout/SExpandableArea.h"
 
 #define LOCTEXT_NAMESPACE "DetailsWorkSpace"
 
@@ -103,6 +104,32 @@ class SAnyObjectDetails : public SCompoundWidget
 	SLATE_BEGIN_ARGS(SAnyObjectDetails)
 	{}
 	SLATE_END_ARGS()
+
+	FReply OnSelectObjectClicked()
+	{
+		auto Object = LazyObjectRef.Resolve();
+		if (Object)
+		{
+			GEditor->SelectNone(false, true, false);
+			if (Object->IsA(AActor::StaticClass()))
+			{
+				GEditor->SelectActor(Cast<AActor>(Object), true, true);
+			}
+			else if (Object->IsA(UActorComponent::StaticClass()))
+			{
+				auto Component = Cast<UActorComponent>(Object);
+				GEditor->SelectActor(Component->GetOwner(), true, true);
+				GEditor->SelectComponent(Component, true, true);
+			}
+			else
+			{
+				TArray<UObject*> Temp;
+				Temp.Add(Object);
+				GEditor->SyncBrowserToObjects(Temp);
+			}
+		}
+		return FReply::Handled();
+	}
 	
 	BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
     void Construct(const FArguments& InArgs, FTabId InTabID)
@@ -136,20 +163,39 @@ class SAnyObjectDetails : public SCompoundWidget
                         }
                     }
                 )
-            ]
+                .Visibility(EVisibility::SelfHitTestInvisible)
+            ].HAlign(HAlign_Center).VAlign(VAlign_Center)
             + SOverlay::Slot()[
-                DetailsView->AsShared()
+            	SNew(SVerticalBox)
+            	+ SVerticalBox::Slot()[
+                    SNew(SHorizontalBox)
+                    + SHorizontalBox::Slot()[
+						SNew(SButton)
+						.OnClicked(FOnClicked::CreateSP(this, &SAnyObjectDetails::OnSelectObjectClicked))
+						.ButtonStyle(FEditorStyle::Get(), "HoverHintOnly")
+						[
+							SNew(SImage)
+	                        .Image(FEditorStyle::GetBrush("PropertyWindow.Button_Browse"))
+	                    ]
+	                ]
+                    .AutoWidth()
+                ]
+                .AutoHeight()
+            	+ SVerticalBox::Slot()[
+					DetailsView->AsShared()
+                ]
+                .AutoHeight()
             ]
         ];
 	}
 	END_SLATE_FUNCTION_BUILD_OPTIMIZATION
 
 public:
-	TLazyObjectPtr<UObject> GetLazyObjectPtr() const {return LazyObjectRef; }
-	void SetObjectLazyPtr(TLazyObjectPtr<UObject> Value)
+	TLazyObjectPtr<UObject> GetLazyObjectPtr() { return LazyObjectRef.Resolve(); }
+	void SetObjectLazyPtr(FDetailWorkspaceObservedItem Value)
 	{
 		LazyObjectRef = Value;
-		DetailsView->SetObject(Value.Get());
+		DetailsView->SetObject(Value.Resolve());
 	}
 	virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override
 	{
@@ -162,13 +208,13 @@ public:
 	}
 	FTabId TabID;
 private:
-	TLazyObjectPtr<UObject> LazyObjectRef;
+	FDetailWorkspaceObservedItem LazyObjectRef;
 	TSharedPtr<class IDetailsView> DetailsView;
 	bool bLoaded = false;
 };
 
 
-class SLayoutSelectionComboButton : public SComboButton
+class SLayoutSelectionComboButton : public SCompoundWidget
 {
 public:
 	DECLARE_DELEGATE_OneParam(FOnLayoutOperation, FString);
@@ -185,17 +231,29 @@ public:
 	BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
 	void Construct(const FArguments& Arguments)
 	{
-		SComboButton::Construct(
-			SComboButton::FArguments()
-		        .OnGetMenuContent(
-		            FOnGetContent::CreateSP(this, &SLayoutSelectionComboButton::OnGetLayoutSelectMenuContent)
-		        )
-		        .ButtonContent()
-		        [
-                    SNew(STextBlock).Text(Arguments._SelectedLayoutName)
-		        ]
-		        .VAlign(VAlign_Center)
-			);
+		ChildSlot[
+			SNew(SHorizontalBox)
+	        + SHorizontalBox::Slot()[
+				SNew(STextBlock).Text(LOCTEXT("LayoutLabel", "Layout"))
+	        ]
+	        .AutoWidth()
+	        .VAlign(VAlign_Center)
+		    .Padding(5.0f)
+	        + SHorizontalBox::Slot()[
+                SAssignNew(ComboButton,  SComboButton)
+                    .OnGetMenuContent(
+                        FOnGetContent::CreateSP(this, &SLayoutSelectionComboButton::OnGetLayoutSelectMenuContent)
+                    )
+                    .ButtonContent()
+                    [
+                        SNew(STextBlock).Text(Arguments._SelectedLayoutName)
+                        .MinDesiredWidth(150.0f)
+                    ]
+                    .VAlign(VAlign_Center)
+            ]
+	        .AutoWidth()
+		    .Padding(5.0f)
+		];
 
 		OnRenameLayout = Arguments._OnRenameLayout;
 		OnCreateNewLayout = Arguments._OnCreateNewLayout;
@@ -206,6 +264,7 @@ public:
 	END_SLATE_FUNCTION_BUILD_OPTIMIZATION
 
 private:
+	TSharedPtr<SComboButton> ComboButton;
 	FSimpleDelegate OnRenameLayout;
 	FSimpleDelegate OnCreateNewLayout;
 	FSimpleDelegate OnCreateNewLayoutByCopying;
@@ -223,6 +282,7 @@ private:
 	void OnRowItemSelected( TSharedPtr<FLayoutRowItem > Layout, ESelectInfo::Type SelectInfo )
 	{
 		OnLayoutSelected.ExecuteIfBound(Layout->LayoutName);
+		ComboButton->SetIsOpen(false);
 	}
 
 	FReply OnLayoutDeleteButton(FString LayoutName)
@@ -329,8 +389,31 @@ public:
 	void Construct(const FArguments& Args)
 	{
 		OnAddObjectConfirmed = Args._OnAddObjectConfirmed;
+		OnVerifyObjectAddable = Args._OnVerifyObjectAddable;
+		
 		ChildSlot[
-			CreateSubObjectsObserveArea()
+            SNew(SHorizontalBox)
+            .Visibility(this, &SSubObjectAddArea::AddObjectButtonVisibility)
+            + SHorizontalBox::Slot()
+            [
+                SNew(STextBlock)
+                .Text(this, &SSubObjectAddArea::OnGetPendingObservedObjectLabel)
+            ]
+            .AutoWidth()
+            .VAlign(VAlign_Center)
+            .Padding(5.0f)
+            + SHorizontalBox::Slot()
+            [
+	            SNew(SComboButton)
+			        .OnGetMenuContent(FOnGetContent::CreateSP(this, &SSubObjectAddArea::CreateDetailForObjectMenu))
+			        .ButtonContent()
+			        [
+			            SNew(STextBlock)
+			            .Text(LOCTEXT("AddButtonLabel", "Add.."))
+			        ]
+            ]
+            .AutoWidth()
+            .Padding(5.0f)
 		];
 	}
 	
@@ -403,33 +486,6 @@ private:
 
 		return MenuBuilder.MakeWidget();
 	}
-	
-	TSharedRef<SWidget> CreateSubObjectsObserveArea()
-	{
-		auto AddObjectButton = SNew(SComboButton)
-            .OnGetMenuContent(FOnGetContent::CreateSP(this, &SSubObjectAddArea::CreateDetailForObjectMenu))
-            .ButtonContent()[
-                SNew(STextBlock)
-                .Text(LOCTEXT("AddButtonLabel", "Add.."))
-            ]
-            .Visibility(this, &SSubObjectAddArea::AddObjectButtonVisibility);
-
-		return 
-            SNew(SHorizontalBox)
-            + SHorizontalBox::Slot()
-            [
-                SNew(STextBlock)
-                .Text(this, &SSubObjectAddArea::OnGetPendingObservedObjectLabel)
-            ]
-            .VAlign(VAlign_Center)
-            .Padding(5.0f)
-            + SHorizontalBox::Slot()
-            [
-                AddObjectButton
-            ]
-            .AutoWidth()
-            .Padding(5.0f);
-	}
 };
 
 
@@ -437,6 +493,24 @@ UObject* UDetailsWorkspaceProfileCollectionFactory::FactoryCreateNew(UClass* Cla
                                                                      EObjectFlags Flags, UObject* Context, FFeedbackContext* Warn)
 {
 	return NewObject<UDetailsWorkspaceProfile>(InParent, Class, Name, Flags);
+}
+
+FDetailWorkspaceObservedItem FDetailWorkspaceObservedItem::From(UObject* Object)
+{
+	FDetailWorkspaceObservedItem Result;
+	if (Object->IsDefaultSubobject())
+	{
+		Result.bIsDefaultSubObject = true;
+		Result.SubObjectName = Object->GetFName();
+		Result.SavedObject = Object->GetOuter();
+	}
+	else
+	{
+		Result.SavedObject = Object;
+		Result.bIsDefaultSubObject = false;
+		Result.SubObjectName = NAME_None;
+	}
+	return Result;
 }
 
 static FName WelcomePageTabID = TEXT("Welcome");
@@ -457,6 +531,42 @@ static TSharedRef<FTabManager::FLayout> InitialLayout()
         );
 }
 
+TSharedRef<SWidget> SDetailsWorkspaceRootTab::CreateConfigArea()
+{
+	SAssignNew(ConfigArea, SExpandableArea)
+		.HeaderContent()[
+			SNew(STextBlock).Text(LOCTEXT("Config", "Config"))
+		]
+		.BodyContent()[
+			SNew(SVerticalBox)
+	        + SVerticalBox::Slot()[
+	            SAssignNew(LayoutSelectComboButton, SLayoutSelectionComboButton)
+	            .OnLayoutDeleteClicked(this, &SDetailsWorkspaceRootTab::DeleteLayoutWithDialog)
+	            .OnCreateNewLayout(this, &SDetailsWorkspaceRootTab::CreateNewLayoutWithDialog)
+	            .OnCreateNewLayoutByCopying(this, &SDetailsWorkspaceRootTab::CreateNewLayoutByCopyingWithDialog)
+	            .OnRenameLayout(this, &SDetailsWorkspaceRootTab::CreateRenameCurrentLayoutWindow)
+	            .SelectedLayoutName(this, &SDetailsWorkspaceRootTab::OnGetCurrentLayoutName)
+	            .OnLayoutSelected(this, &SDetailsWorkspaceRootTab::SwitchLayout, true)
+	        ]
+	        .VAlign(VAlign_Center)
+	        .HAlign(HAlign_Left)
+	        .AutoHeight()
+	        .Padding(2.0f)
+	        + SVerticalBox::Slot()[
+	            SAssignNew(SubObjectAddArea, SSubObjectAddArea)
+	            .OnAddObjectConfirmed(SSubObjectAddArea::FAddObjectConfirmed::CreateSP(this, &SDetailsWorkspaceRootTab::SpawnNewDetailWidgetForObject))
+	            .OnVerifyObjectAddable(SSubObjectAddArea::FVerifyObjectAddable::CreateSP(this, &SDetailsWorkspaceRootTab::IsNotObservingObject))
+	        ]
+	        .AutoHeight()
+	        .VAlign(VAlign_Center)
+	        .HAlign(HAlign_Left)
+	        .Padding(2.0f)
+        ];
+	ConfigArea->SetExpanded(false);
+
+	return ConfigArea.ToSharedRef();
+}
+
 void SDetailsWorkspaceRootTab::DoPersistVisualState()
 {
 	auto LocalCollection = UDetailsWorkspaceProfile::GetOrCreateLocalUserProfile();
@@ -471,8 +581,8 @@ void SDetailsWorkspaceRootTab::DoPersistVisualState()
 		LocalCollection->InstanceLastLayout.FindOrAdd(InstanceName) = WorkingLayoutName;
 	}
 
-	// Save the actual layout.  
-	SaveLayout(WorkingLayoutName);
+	// Save the layout.  
+	SaveLayout();
 }
 
 void SDetailsWorkspaceRootTab::CreateNewLayout(FText LayoutName)
@@ -512,13 +622,11 @@ void SDetailsWorkspaceRootTab::SwitchLayout(FString TargetLayoutName, bool bSave
 
 	if (bSaveBeforeSwitching)
 	{
-		SaveLayout(WorkingLayoutName);
+		SaveLayout();
 	}
 
 	Restore(*Found);
 	WorkingLayoutName = TargetLayoutName;
-
-	LayoutSelectComboButton->SetIsOpen(false);
 }
 
 bool SDetailsWorkspaceRootTab::IsObservingObject(UObject* Object) const
@@ -541,12 +649,6 @@ void SDetailsWorkspaceRootTab::CreateRenameCurrentLayoutWindow()
         .ClientSize(FVector2D(300, 120))
         .ButtonText(LOCTEXT("Rename", "Rename"))
         .OnConfirmed(SLayoutNameInputWindow::FOnNameInputConfirmed::CreateSP(this, &SDetailsWorkspaceRootTab::RenameCurrentLayout));
-}
-
-void SDetailsWorkspaceRootTab::OnLayoutMenuSelected(const FText& Layout)
-{
-	SwitchLayout(Layout.ToString(), true);
-	LayoutSelectComboButton->SetIsOpen(false);
 }
 
 void SDetailsWorkspaceRootTab::DeleteLayoutWithDialog(FString LayoutName)
@@ -607,12 +709,18 @@ EVisibility SDetailsWorkspaceRootTab::DropAreaVisibility() const
     return FSlateApplication::Get().IsDragDropping() && OnRecognizeObserveObjectDrop(FSlateApplication::Get().GetDragDroppingContent()) ? EVisibility::Visible : EVisibility::Hidden;
 }
 
-void SDetailsWorkspaceRootTab::Construct(const FArguments& Args, TSharedPtr<SWindow> Window, FString InInstanceName, bool bLoadInstanceLastLayout)
+FText SDetailsWorkspaceRootTab::GetLabel() const
+{
+	return FText::FromString(WorkingLayoutName);
+}
+
+void SDetailsWorkspaceRootTab::Construct(const FArguments& Args, FString InInstanceName, bool bLoadInstanceLastLayout)
 {
 	this->InstanceName = InInstanceName;
 	
 	SDockTab::Construct(SDockTab::FArguments()
-		.TabRole(ETabRole::MajorTab)
+		.TabRole(ETabRole::NomadTab)
+		.Label(this, &SDetailsWorkspaceRootTab::GetLabel)
 	);
 
 	SetOnPersistVisualState(FOnPersistVisualState::CreateSP(this, &SDetailsWorkspaceRootTab::DoPersistVisualState));
@@ -643,40 +751,16 @@ void SDetailsWorkspaceRootTab::Construct(const FArguments& Args, TSharedPtr<SWin
 		+ SOverlay::Slot()[
 		    SNew( SVerticalBox )
 		    +SVerticalBox::Slot()
-			.AutoHeight()
-		    [
-	    		SNew(SHorizontalBox)
-		        + SHorizontalBox::Slot()[
-					SNew(STextBlock).Text(LOCTEXT("LayoutLabel", "Layout"))
-		        ]
-		        .AutoWidth()
-		        .VAlign(VAlign_Center)
-	    		+ SHorizontalBox::Slot()[
-				    SAssignNew(LayoutSelectComboButton, SLayoutSelectionComboButton)
-				    .OnLayoutDeleteClicked(this, &SDetailsWorkspaceRootTab::DeleteLayoutWithDialog)
-				    .OnCreateNewLayout(this, &SDetailsWorkspaceRootTab::CreateNewLayoutWithDialog)
-				    .OnCreateNewLayoutByCopying(this, &SDetailsWorkspaceRootTab::CreateNewLayoutByCopyingWithDialog)
-				    .OnRenameLayout(this, &SDetailsWorkspaceRootTab::CreateRenameCurrentLayoutWindow)
-				    .SelectedLayoutName(this, &SDetailsWorkspaceRootTab::OnGetCurrentLayoutName)
-				    .OnLayoutSelected(this, &SDetailsWorkspaceRootTab::SwitchLayout, true)
-		        ]
-		        .VAlign(VAlign_Center)
-		        .HAlign(HAlign_Left)
-		        .AutoWidth()
-		        .Padding(5.0f)
-		        + SHorizontalBox::Slot()[
-		        	SAssignNew(SubObjectAddArea, SSubObjectAddArea)
-		        	.OnAddObjectConfirmed(SSubObjectAddArea::FAddObjectConfirmed::CreateSP(this, &SDetailsWorkspaceRootTab::SpawnNewDetailWidgetForObject))
-		        	.OnVerifyObjectAddable(SSubObjectAddArea::FVerifyObjectAddable::CreateSP(this, &SDetailsWorkspaceRootTab::IsNotObservingObject))
-		        ]
-		        .VAlign(VAlign_Center)
-		        .HAlign(HAlign_Right)
-		        .Padding(5.0f)
-		    ]
+            [
+	        	CreateConfigArea()
+            ]
+            .Padding(2.0f)
+            .AutoHeight()
 		    +SVerticalBox::Slot()
 		    .FillHeight( 1.0f )
 		    [
 				SAssignNew(DockingTabsContainer, SBorder)
+				.BorderImage(FEditorStyle::GetBrush("Docking.Tab.ContentAreaBrush"))
 		    ]
 	    ]
 	    + SOverlay::Slot() [
@@ -792,8 +876,9 @@ UDetailsWorkspaceProfileCollectionFactory::UDetailsWorkspaceProfileCollectionFac
 	bEditAfterNew = false;
 }
 
-void SDetailsWorkspaceRootTab::SaveLayout(FString LayoutName)
+void SDetailsWorkspaceRootTab::SaveLayout()
 {
+	auto LayoutName = WorkingLayoutName;
 	if (LayoutName.TrimStartAndEnd().IsEmpty())
 		return;
 	auto Collection = UDetailsWorkspaceProfile::GetOrCreateLocalUserProfile();
@@ -805,26 +890,6 @@ void SDetailsWorkspaceRootTab::SaveLayout(FString LayoutName)
 	// Directly save the file.
 	// It's stupid to ask user to save a transient file.  
 	FEditorFileUtils::PromptForCheckoutAndSave({Collection->GetPackage()}, true, false);
-}
-
-void SDetailsWorkspaceRootTab::SaveLayoutWithDialog(FString LayoutName)
-{
-	auto Collection = UDetailsWorkspaceProfile::GetOrCreateLocalUserProfile();
-	if (!Collection)
-	{
-		FMessageDialog::Open(EAppMsgType::Ok, LOCTEXT("SaveProfileFailed", "Failed to save profile. Check your disk size/write permission"));
-		return;
-	}
-
-	if (Collection->WorkspaceLayouts.Contains(LayoutName))
-	{
-		if (EAppMsgType::Ok != FMessageDialog::Open(EAppMsgType::OkCancel, LOCTEXT("OverwriteProfileConfirmDialogContent", "Overwrite existing layout?")))
-		{
-			return;
-		}
-	}
-
-	SaveLayout(LayoutName);
 }
 
 void SDetailsWorkspaceRootTab::DumpCurrentLayout(FDetailsWorkspaceLayout& OutTarget)
@@ -860,7 +925,8 @@ TSharedRef<SDockTab> SDetailsWorkspaceRootTab::CreateDocKTabWithDetailView(const
 				if (Object.IsValid())
 				{
 					return FText::FromString(GetPrettyNameForObject(Object.Get()));
-				}else
+				}
+				else
 				{
 					return FText::FromString(TEXT("Empty"));
 				}
@@ -876,7 +942,7 @@ TSharedRef<SDockTab> SDetailsWorkspaceRootTab::CreateDocKTabWithDetailView(const
 	if (LoadedProfile.References.Find(ID.TabType))
 	{
 		auto WeakPtr = *LoadedProfile.References.Find(ID.TabType);
-		NewObjectDetailWidget->SetObjectLazyPtr(WeakPtr.Resolve());
+		NewObjectDetailWidget->SetObjectLazyPtr(WeakPtr);
 	}
 
 	return Tab;
@@ -895,8 +961,11 @@ TSharedRef<SDockTab> SDetailsWorkspaceRootTab::CreateWelcomeTab(const FSpawnTabA
                 SNew(STextBlock)
                 .Text(LOCTEXT("WelcomeTabContent",
                 	"Drop any actor/asset here to start.\n"
-                	"If actor/asset has subobject(Component), a button will appear for choosing at top-right.\n"
-                	"Switch layout at top-left menu.\n"                
+                	"If actor/asset has subobject(Component), a button will appear for choosing in config.\n"
+                	"\n"
+                    "You can freely re-arrange created tabs in this panel."
+                	"\n"
+                	"Switch layout in config.\n"
                 ))
             ].HAlign(HAlign_Center).VAlign(VAlign_Center)
 		];
@@ -926,6 +995,8 @@ FReply SDetailsWorkspaceRootTab::OnObserveObjectDrop(TSharedPtr<FDragDropOperati
 		if (HasDefaultSubObject(Object))
 		{
 			SubObjectAddArea->PendingObservedObject = Object;
+			ConfigArea->SetExpanded(true);	//So user could see the add button.  
+			
 		}
 		else
 		{
@@ -1009,9 +1080,9 @@ void SDetailsWorkspaceRootTab::SpawnNewDetailWidgetForObject(UObject* InObject)
 }
 
 
-TSharedRef<SDetailsWorkspaceRootTab> CreateDetailsWorkSpace(TSharedPtr<SWindow> Window, FString InstanceName, bool bLoadInstanceLastLayout)
+TSharedRef<SDetailsWorkspaceRootTab> CreateDetailsWorkSpace(FString InstanceName, bool bLoadInstanceLastLayout)
 {
-	return SNew(SDetailsWorkspaceRootTab, Window, InstanceName, bLoadInstanceLastLayout);
+	return SNew(SDetailsWorkspaceRootTab, InstanceName, bLoadInstanceLastLayout);
 }
 
 #undef LOCTEXT_NAMESPACE

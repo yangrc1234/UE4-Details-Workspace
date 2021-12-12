@@ -56,19 +56,7 @@ void FFlexibleDetailsWorkspaceModule::ShutdownModule()
 
 TSharedRef<SDockTab> FFlexibleDetailsWorkspaceModule::OnSpawnPluginTab(const FSpawnTabArgs& SpawnTabArgs)
 {
-
-	// How is this going to work?  
-	// 1. Object references are stored.
-	// 2. An action named "load workspace" is called, when user open the window, or explicitly click a button in the window.  
-	// 3. A workspace contains layout, and each node corresponding lazy object pointer.
-
-	//TODO:
-	// 1. Create the root tab slate.
-	// 2. Root tab slate should allow drag-n-drop objects into it.  
-
-	// Root tab.
-	// It doesn't change.
-	return CreateDetailsWorkSpace(SpawnTabArgs.GetOwnerWindow(), TEXT("Default"), true);
+	return CreateDetailsWorkSpace(TEXT("Default"), true);
 }
 
 void FFlexibleDetailsWorkspaceModule::PluginButtonClicked()
