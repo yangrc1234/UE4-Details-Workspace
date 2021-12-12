@@ -18,17 +18,22 @@ Currently it's only tested on 4.27. But it's mostly plain slate code, so I suppo
 * Support multiple layouts to switch from.
 
 ## How to Use  
-1. Install the plugin, a new item should appear in Window menu:    
+
+1. Clone the source to your project Plugins folder. 
+   * You should specify clone directory name to DetailsWorkspace, since it's plugin name, e.g.   
+    `git clone https://github.com/yangrc1234/UE4-Details-Workspace.git DetailsWorkspace`
+
+2. Open project. A new item should appear in Window menu:    
 ![](Images/WhereToOpen.png)
 
-2. Open the window, you should see:  
+3. Open the window, you should see:  
 ![](Images/FirstOpen.png)  
 
-3. Drag any asset/actor onto the window.
+4. Drag any asset/actor onto the window.
     * If it has no sub-object(Component), a Detail tab will be created.  
     * Otherwise, you will need to select what to add in the menu.   
     
-4. Change the layout as you like.
+5. Change the layout as you like.
 
 
 ## Limitations
