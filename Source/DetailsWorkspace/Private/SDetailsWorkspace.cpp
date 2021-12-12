@@ -9,7 +9,6 @@
 #include "SLayoutInputNameWindow.h"
 #include "DragAndDrop/ActorDragDropOp.h"
 #include "DragAndDrop/AssetDragDropOp.h"
-#include "Widgets/Layout/SScrollBox.h"
 #include "Widgets/Layout/SExpandableArea.h"
 #include "Widgets/Layout/SGridPanel.h"
 #include "HAL/PlatformApplicationMisc.h"
@@ -145,29 +144,29 @@ void SDetailsWorkspace::DoPersistVisualState()
 		SaveLayout();
 }
 
-void SDetailsWorkspace::CreateNewLayout(FText LayoutName)
+void SDetailsWorkspace::CreateNewLayout(FString LayoutName)
 {
-	if (LayoutName.ToString().TrimStartAndEnd().IsEmpty())
+	if (LayoutName.TrimStartAndEnd().IsEmpty())
 		return;
 	auto Collection = UDetailsWorkspaceProfile::GetOrCreateLocalUserProfile();
 	
-	Collection->WorkspaceLayouts.Add(LayoutName.ToString(), FDetailsWorkspaceLayout());
-	WorkingLayoutName = LayoutName.ToString();
+	Collection->WorkspaceLayouts.Add(LayoutName, FDetailsWorkspaceLayout());
+	WorkingLayoutName = LayoutName;
 
 	ResetLayoutToInitial();
 }
 
-void SDetailsWorkspace::CreateNewLayoutByCopyingCurrent(FText LayoutName)
+void SDetailsWorkspace::CreateNewLayoutByCopyingCurrent(FString LayoutName)
 {
-	if (LayoutName.ToString().TrimStartAndEnd().IsEmpty())
+	if (LayoutName.TrimStartAndEnd().IsEmpty())
 		return;
 	auto Collection = UDetailsWorkspaceProfile::GetOrCreateLocalUserProfile();
 	
 	FDetailsWorkspaceLayout Value;
 	DumpCurrentLayout(Value);
 	
-	Collection->WorkspaceLayouts.Add(LayoutName.ToString(), Value);
-	WorkingLayoutName = LayoutName.ToString();
+	Collection->WorkspaceLayouts.Add(LayoutName, Value);
+	WorkingLayoutName = LayoutName;
 }
  
 void SDetailsWorkspace::SwitchLayout(FString TargetLayoutName, bool bSaveBeforeSwitching)
@@ -241,7 +240,7 @@ void SDetailsWorkspace::CreateNewLayoutByCopyingWithDialog()
         .ButtonText(LOCTEXT("Add", "Add"))
         .OnConfirmed(SLayoutNameInputWindow::FOnNameInputConfirmed::CreateSP(this, &SDetailsWorkspace::CreateNewLayoutByCopyingCurrent));
 }
-void SDetailsWorkspace::RenameCurrentLayout(FText NewName)
+void SDetailsWorkspace::RenameCurrentLayout(FString NewName)
 {
 	auto Collection = UDetailsWorkspaceProfile::GetOrCreateLocalUserProfile();
 
@@ -250,13 +249,13 @@ void SDetailsWorkspace::RenameCurrentLayout(FText NewName)
 		auto Copy = *Current;
 		Collection->Modify();
 		Collection->WorkspaceLayouts.Remove(WorkingLayoutName);
-		Collection->WorkspaceLayouts.Add(NewName.ToString(), Copy);
+		Collection->WorkspaceLayouts.Add(NewName, Copy);
 		// Directly save the file.
 		// It's stupid to ask user to save a transient file.  
 		FEditorFileUtils::PromptForCheckoutAndSave({Collection->GetPackage()}, true, false);
 	}
 
-	WorkingLayoutName = NewName.ToString();
+	WorkingLayoutName = NewName;
 }
 
 FText SDetailsWorkspace::OnGetCurrentLayoutName() const
@@ -436,11 +435,6 @@ void SDetailsWorkspace::DumpCurrentLayout(FDetailsWorkspaceLayout& OutTarget)
 	}
 }
 
-bool SDetailsWorkspace::EnableAutoPIE() const
-{
-	return AutoPIECheckBox->IsChecked();	
-}
-
 void SDetailsWorkspace::OnDetailTabClosed(TSharedRef<SDockTab> Tab, TWeakPtr<SAnyObjectDetails> Detail)
 {
 	SpawnedDetails.Remove(Detail);
@@ -456,7 +450,7 @@ TSharedRef<SDockTab> SDetailsWorkspace::CreateDocKTabWithDetailView(const FSpawn
 	auto ID = Args.GetTabId();
 	auto NewObjectDetailWidget =
 		SNew(SAnyObjectDetails, ID)
-		.AutoInspectPIE(this, &SDetailsWorkspace::EnableAutoPIE)
+		.AutoInspectPIE(AutoPIECheckBox.ToSharedRef(), &SCheckBox::IsChecked)
 	;
 	
 	auto WeakPtrToDetailWidget = TWeakPtr<SAnyObjectDetails>(NewObjectDetailWidget);

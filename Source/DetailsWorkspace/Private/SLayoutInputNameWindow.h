@@ -5,7 +5,7 @@
 class SLayoutNameInputWindow : public SWindow
 {
 public:
-	DECLARE_DELEGATE_OneParam(FOnNameInputConfirmed, FText);
+	DECLARE_DELEGATE_OneParam(FOnNameInputConfirmed, FString);
 	
 	SLATE_BEGIN_ARGS(SLayoutNameInputWindow)
 	{}
@@ -17,7 +17,7 @@ public:
 	
     FText GetText() const
 	{
-		return InputContent;
+		return FText::FromString(InputContent);
 	}
 	
 	void Construct(const FArguments& Args);
@@ -27,9 +27,9 @@ private:
 
 	void OnTextChanged(const FText& Input)
 	{
-		InputContent = Input;
+		InputContent = Input.ToString();
 	}
 	FOnNameInputConfirmed OnConfirmed;
-	FText InputContent;
+	FString InputContent;
 };
 

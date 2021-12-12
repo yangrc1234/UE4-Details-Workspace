@@ -12,22 +12,45 @@ public:
 
 	~SDetailsWorkspace();
 	void Construct(const FArguments& Args, FString InstanceName, bool bLoadInstanceLastLayout);
+
+	// Reset to initial state. (Welcome tab)
+	// This will erase current layout data.  
 	void ResetLayoutToInitial();
+
+	// Restore layout from layout name.
+	// Will erase current layout data.
 	void RestoreFromLocalUserLayout(FString LayoutName);
+
+	// Create new tab for InObject.  
 	void SpawnNewDetailWidgetForObject(UObject* InObject);
+
+	// Check if Object has corresponding tab.
 	bool IsObservingObject(UObject* Object) const;
+
+	// Switch to another layout.  
 	void SwitchLayout(FString TargetLayoutName, bool bSaveBeforeSwitching = true);
-	void CreateNewLayout(FText LayoutName);
-	void CreateNewLayoutByCopyingCurrent(FText LayoutName);
+
+	// Create new layout using LayoutName.
+	void CreateNewLayout(FString LayoutName);
+
+	// Create new layout using LayoutName.
+	// Current layout data will be copied over.
+	void CreateNewLayoutByCopyingCurrent(FString LayoutName);
+
+	// Create new layout, offering user a dialog to input layout name. 
 	void CreateNewLayoutWithDialog();
+	
+	// Create new layout, offering user a dialog to input layout name.
+	// Current layout data will be copied over.
 	void CreateNewLayoutByCopyingWithDialog();
 
+	// Rename current layout. 
+	void RenameCurrentLayout(FString NewName);
 protected:
 	TSharedRef<SDockTab> CreateDocKTabWithDetailView(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab> CreateWelcomeTab(const FSpawnTabArgs& Args);
 	void Restore(const FDetailsWorkspaceLayout& Profile);
 	void DumpCurrentLayout(FDetailsWorkspaceLayout& OutTarget);
-	bool EnableAutoPIE() const;
 	EVisibility DropAreaVisibility() const;
 	FText GetLabel() const;
 
@@ -59,7 +82,6 @@ private:
 	void DoPersistVisualState();
 	FText OnGetCurrentLayoutName() const;
 
-	void RenameCurrentLayout(FText NewName);
 	void CreateRenameCurrentLayoutWindow();
 
 	TSharedPtr<SCheckBox> DeveloperModeCheckerbox;
