@@ -238,9 +238,10 @@ void SAnyObjectDetails::OnGetCategoryNames(TArray<FName> Val)
 	{
 		Box->AddSlot()[
             SNew(SBorder)
-            .BorderImage_Lambda([this, t]()
+            .BorderImage(FEditorStyle::GetBrush("ToolPanel.DarkGroupBorder"))
+            .ColorAndOpacity_Lambda( [this, t]()
 				{
-					return GetObserveItem().HiddenCategories.Contains(t) ? FEditorStyle::GetBrush("ToolPanel.DarkGroupBorder") : FEditorStyle::GetBrush("ToolPanel.GroupBorder"); 
+					return GetObserveItem().HiddenCategories.Contains(t) ? FLinearColor(0.5f, 0.5f, 0.5f) : FLinearColor::White;
 				})
             [
                 SNew(SCheckBox)
