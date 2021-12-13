@@ -1,8 +1,41 @@
 ﻿#include "SAnyObjectDetails.h"
 
+
+#include "DetailLayoutBuilder.h"
 #include "EditorFontGlyphs.h"
+#include "IDetailCustomization.h"
 
 #define LOCTEXT_NAMESPACE "DetailsWorkSpace"
+
+namespace
+{
+	class FCustomDetailsLayout : public IDetailCustomization
+	{
+	public:
+		DECLARE_DELEGATE_RetVal_OneParam(bool, FOnGetCategoryVisibiliy, FName)
+		FOnGetCategoryVisibiliy OnGetCategoryVisibiliy;
+		
+		DECLARE_DELEGATE_OneParam(FOnGetCategories, TArray<FName>)
+		FOnGetCategories OnGetCategories;
+		
+		virtual void CustomizeDetails(IDetailLayoutBuilder& DetailBuilder) override
+		{
+			TArray<FName> Categories;
+			DetailBuilder.GetCategoryNames(Categories);
+			if (OnGetCategories.IsBound())
+			{
+				OnGetCategories.Execute(Categories);
+			}
+			for(auto t : Categories)
+			{
+				if (OnGetCategoryVisibiliy.IsBound() && !OnGetCategoryVisibiliy.Execute(t))
+				{
+					DetailBuilder.HideCategory(t);
+				}
+			}
+		}
+	};
+}
 
 FReply SAnyObjectDetails::OnSelectObjectClicked()
 {
@@ -46,20 +79,7 @@ FText SAnyObjectDetails::GetHintText() const
 	}
 }
 
-bool SAnyObjectDetails::OnPropertyVisible(const FPropertyAndParent& PropertyAndParent)
-{
-	auto Category = PropertyAndParent.Property.GetMetaData(TEXT("Category"));
-	if (HiddenCategories.Contains(Category))
-		return false;
-	for (auto Parent : PropertyAndParent.ParentProperties)
-	{
-		if (HiddenCategories.Contains(Parent->GetMetaData(TEXT("Category"))))
-			return false;
-	}
-	return true;
-}
-
-void GetAllCategories(const UObject* Object, TArray<FString> &OutResult)
+void GetAllCategories(const UObject* Object, TArray<FName> &OutResult)
 {
 	FProperty* Pointer = Object->GetClass()->PropertyLink;	
 	
@@ -68,7 +88,7 @@ void GetAllCategories(const UObject* Object, TArray<FString> &OutResult)
 		static const FName CategoryMetaDataKey = TEXT("Category");
 		auto Category = Pointer->GetMetaData(CategoryMetaDataKey);
 		if (!Category.TrimStartAndEnd().IsEmpty())
-			OutResult.AddUnique(Pointer->GetMetaData(CategoryMetaDataKey));		
+			OutResult.AddUnique(FName(Pointer->GetMetaData(CategoryMetaDataKey)));		
 		Pointer = Pointer->PropertyLinkNext;
 	};
 
@@ -100,7 +120,20 @@ void SAnyObjectDetails::Construct(const FArguments& InArgs, FTabId InTabID)
 	
 	TabID = InTabID;
 	DetailsView = PropertyEditorModule.CreateDetailView(DetailsViewArgs);
-	DetailsView->SetIsPropertyVisibleDelegate(FIsPropertyVisible::CreateSP(this, &SAnyObjectDetails::OnPropertyVisible));
+	
+	DetailsView->RegisterInstancedCustomPropertyLayout(UObject::StaticClass(), FOnGetDetailCustomizationInstance::CreateLambda([this]()
+    {
+        auto t = MakeShared<FCustomDetailsLayout>();
+        t->OnGetCategoryVisibiliy = FCustomDetailsLayout::FOnGetCategoryVisibiliy::CreateLambda([this](FName Cateogry)
+        {
+            return !ObjectValue.HiddenCategories.Contains(Cateogry);
+        });
+		t->OnGetCategories = FCustomDetailsLayout::FOnGetCategories::CreateSP(this, &SAnyObjectDetails::OnGetCategoryNames);
+			
+        return t;
+    }));
+	
+	//DetailsView->SetIsPropertyVisibleDelegate(FIsPropertyVisible::CreateSP(this, &SAnyObjectDetails::OnPropertyVisible));
 	
 	ChildSlot
 	[
@@ -139,7 +172,7 @@ void SAnyObjectDetails::Construct(const FArguments& InArgs, FTabId InTabID)
                         .ColorAndOpacity_Lambda(
                         	[this]()
                         	{
-                        		return HiddenCategories.Num() > 0 ? FLinearColor::White : FLinearColor(0.66f, 0.66f, 0.66f, 0.66f);
+                        		return ObjectValue.HiddenCategories.Num() > 0 ? FLinearColor::White : FLinearColor(0.66f, 0.66f, 0.66f, 0.66f);
                         	})
                     ]
                 ]
@@ -152,7 +185,8 @@ void SAnyObjectDetails::Construct(const FArguments& InArgs, FTabId InTabID)
 				.Visibility_Lambda([this](){ return bCategoryFilterVisibility ? EVisibility::Visible : EVisibility::Collapsed; })
             ]
 			.AutoHeight()
-			+ SVerticalBox::Slot()[
+			+ SVerticalBox::Slot()
+			[
 				DetailsView->AsShared()
 			]
 		]
@@ -166,22 +200,22 @@ UObject* SAnyObjectDetails::GetObjectAuto()
 	return ObjectValue.Resolve(bWantPIE);
 }
 
-void SAnyObjectDetails::OnCategoryFilterCheckStateChanged(ECheckBoxState State, FString Category)
+void SAnyObjectDetails::OnCategoryFilterCheckStateChanged(ECheckBoxState State, FName Category)
 {
 	if (State == ECheckBoxState::Checked)
 	{
-		HiddenCategories.Remove(Category);
+		ObjectValue.HiddenCategories.Remove(Category);
 	}else
 	{
-		HiddenCategories.Add(Category);
+		ObjectValue.HiddenCategories.Add(Category);
 	}
 	if (ensure(DetailsView))
 		DetailsView->ForceRefresh();
 }
 
-ECheckBoxState SAnyObjectDetails::OnGetCategoryFilterCheckState(FString Category) const
+ECheckBoxState SAnyObjectDetails::OnGetCategoryFilterCheckState(FName Category) const
 {
-	if (HiddenCategories.Contains(Category))
+	if (ObjectValue.HiddenCategories.Contains(Category))
 	{
 		return ECheckBoxState::Unchecked;
 	}
@@ -191,37 +225,51 @@ ECheckBoxState SAnyObjectDetails::OnGetCategoryFilterCheckState(FString Category
 	}
 }
 
-void SAnyObjectDetails::SetObjectLazyPtr(FDetailsWorkspaceObservedItem Value)
+void SAnyObjectDetails::OnGetCategoryNames(TArray<FName> Val)
 {
-	AvailableCategories.Empty();
-	ObjectValue = Value;
-	if (ObjectValue.Resolve(false))
-	{
-		GetAllCategories(ObjectValue.Resolve(false), AvailableCategories);
-	}
-	AvailableCategories.Sort();
-
+	if (!bAvailableCategoriesDirty)
+		return;
+	bAvailableCategoriesDirty = false;
+	AvailableCategories = Val;
 	auto Box = SNew(SWrapBox).UseAllottedSize(true);
 
+	AvailableCategories.Sort([](const FName& a, const FName& b){return a.FastLess(b);});
 	for(auto t : AvailableCategories)
 	{
 		Box->AddSlot()[
-			SNew(SBorder)
-			.BorderImage(FEditorStyle::GetBrush("ToolPanel.DarkGroupBorder"))
-			[
-				SNew(SCheckBox)
-				.OnCheckStateChanged(this, &SAnyObjectDetails::OnCategoryFilterCheckStateChanged, t)
-				.IsChecked(this, &SAnyObjectDetails::OnGetCategoryFilterCheckState, t)
-				[
-					SNew(STextBlock).Text(FText::FromString(t))
-				]
-			]
-		].Padding(2.0f);
+            SNew(SBorder)
+            .BorderImage_Lambda([this, t]()
+				{
+					return GetObserveItem().HiddenCategories.Contains(t) ? FEditorStyle::GetBrush("ToolPanel.DarkGroupBorder") : FEditorStyle::GetBrush("ToolPanel.GroupBorder"); 
+				})
+            [
+                SNew(SCheckBox)
+                .OnCheckStateChanged(this, &SAnyObjectDetails::OnCategoryFilterCheckStateChanged, t)
+                .IsChecked(this, &SAnyObjectDetails::OnGetCategoryFilterCheckState, t)
+                [
+                    SNew(STextBlock).Text(FText::FromString(t.ToString()))
+                ]
+            ]
+        ].Padding(2.0f);
 	}
 
 	CategoryFilterRoot->SetContent(
-		Box
-	);
+        Box
+    );
+}
+
+void SAnyObjectDetails::SetObserveItem(FDetailsWorkspaceObservedItem Value)
+{	
+	ObjectValue = Value;
+	if (ObjectValue.Resolve(false))
+	{
+		auto Object = ObjectValue.Resolve(false);
+		//GetAllCategories(Object, AvailableCategories);
+	}
+	
+	AvailableCategories.Empty();
+	bAvailableCategoriesDirty = true;
+	
 }
 
 void SAnyObjectDetails::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)

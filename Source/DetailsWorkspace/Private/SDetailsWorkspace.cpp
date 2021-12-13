@@ -218,6 +218,7 @@ void SDetailsWorkspace::DeleteLayoutWithDialog(FString LayoutName)
 		Collection->WorkspaceLayouts.Remove(LayoutName);
 		if (WorkingLayoutName == LayoutName)
 		{
+			ResetLayoutToInitial();
 			WorkingLayoutName = TEXT("");
 		}
 	}
@@ -428,9 +429,8 @@ void SDetailsWorkspace::DumpCurrentLayout(FDetailsWorkspaceLayout& OutTarget)
 		auto Pinned = Tab.Pin();
 		if (Pinned && Pinned->GetObject(false) && TabManager->FindExistingLiveTab(Tab.Pin()->TabID))
 		{
-			auto Object = Pinned->GetObject(false);
-			if (!Object->HasAnyFlags(RF_Transient))
-				OutTarget.References.Add(Pinned->TabID.TabType, FDetailsWorkspaceObservedItem::From(Object));
+			auto& Item = Pinned->GetObserveItem();
+			OutTarget.References.Add(Pinned->TabID.TabType, Item);
 		}
 	}
 }
@@ -494,8 +494,8 @@ TSharedRef<SDockTab> SDetailsWorkspace::CreateDocKTabWithDetailView(const FSpawn
 
 	if (LoadedProfile.References.Find(ID.TabType))
 	{
-		auto WeakPtr = *LoadedProfile.References.Find(ID.TabType);
-		NewObjectDetailWidget->SetObjectLazyPtr(WeakPtr);
+		auto Item = *LoadedProfile.References.Find(ID.TabType);
+		NewObjectDetailWidget->SetObserveItem(Item);
 	}
 
 	return Tab;

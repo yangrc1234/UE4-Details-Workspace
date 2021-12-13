@@ -10,34 +10,33 @@ class SAnyObjectDetails : public SCompoundWidget
 	SLATE_ATTRIBUTE(bool, AutoInspectPIE)
 	SLATE_END_ARGS()
 
-	FReply OnSelectObjectClicked();
-
-	FText GetHintText() const;
-	bool OnPropertyVisible(const FPropertyAndParent& PropertyAndParent);
-	FReply OnCategoriesClicked();
-
 	void Construct(const FArguments& InArgs, FTabId InTabID);
+	
 
 	UObject* GetObject(bool bPIE) { return ObjectValue.Resolve(bPIE); }
-
 	UObject* GetObjectAuto();
-	void OnCategoryFilterCheckStateChanged(ECheckBoxState State, FString Category);
-
-	ECheckBoxState OnGetCategoryFilterCheckState(FString Category) const;
-	void SetObjectLazyPtr(FDetailsWorkspaceObservedItem Value);
+	
+	void SetObserveItem(FDetailsWorkspaceObservedItem Value);
+	const FDetailsWorkspaceObservedItem& GetObserveItem() const { return ObjectValue; }
 
 	virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
 	FTabId TabID;
 
 private:
+	FReply OnSelectObjectClicked();
+	FText GetHintText() const;
+	FReply OnCategoriesClicked();
+	void OnCategoryFilterCheckStateChanged(ECheckBoxState State, FName Category);
+	ECheckBoxState OnGetCategoryFilterCheckState(FName Category) const;
+	void OnGetCategoryNames(TArray<FName> Val);
+	
 	bool bCategoryFilterVisibility = false;
 	TSharedPtr<SBorder> CategoryFilterRoot;
-	TArray<FString> AvailableCategories;
-	TSet<FString> HiddenCategories;
+	TArray<FName> AvailableCategories;
 	TWeakObjectPtr<UObject> CurrentWatching;
 	TAttribute<bool> bAutoInspectPIE;
 	FDetailsWorkspaceObservedItem ObjectValue;
 	TSharedPtr<class IDetailsView> DetailsView;
-	bool bLoaded = false;
+	bool bAvailableCategoriesDirty = true;
 };
 
