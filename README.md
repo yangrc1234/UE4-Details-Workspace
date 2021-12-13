@@ -1,10 +1,13 @@
 ﻿# Details Workspace (for UE4)
 Details Workspace is a UE4 editor plugin for better artist/designer workflow.    
-It allows you to create any number of "Details" tab of actor/component/assets, and arrange the tabs freely.  
+It allows you to create any number of "Details" tab of actor/component/assets, and arrange the tabs freely in a panel.  
+
 Example:  
 ![](Images/Example0.png)  
 Setup:  
 ![](Images/Animated.gif)
+Filter by category:  
+![](Images/CategoryFilter.gif)
 
 This could be useful, if you're doing some work that require many actor/components to work together, e.g. environment lighting.  
 
@@ -14,8 +17,9 @@ Currently it's only tested on 4.27. But it's mostly plain slate code, so I suppo
 
 ## Features  
 * Any actor/component/asset is supported.  
-* Layouts can be saved/loaded(Including in-level actor/components). 
+* Layout can be saved/loaded(Including in-level actor/components). 
 * Support multiple layouts to switch from.
+* Category filtering.
 
 ## How to Use  
 

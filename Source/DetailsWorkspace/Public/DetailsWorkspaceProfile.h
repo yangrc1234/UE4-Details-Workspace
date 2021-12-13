@@ -13,9 +13,6 @@ struct FDetailsWorkspaceObservedItem
 
 	UObject* Resolve(bool bTryResolvePIECounterPart);
 
-	TWeakObjectPtr<UObject> ResolvedObject = nullptr;
-	TWeakObjectPtr<UObject> ResolvedObjectPIE = nullptr;
-
 	UPROPERTY(EditAnywhere)
 	TLazyObjectPtr<UObject> SavedObject = nullptr;
 
@@ -24,6 +21,13 @@ struct FDetailsWorkspaceObservedItem
 
 	UPROPERTY(EditAnywhere)
 	FName SubObjectName = NAME_None;
+
+	UPROPERTY(EditAnywhere)
+	TArray<FName> HiddenCategories;
+
+private:
+	TWeakObjectPtr<UObject> ResolvedObject = nullptr;
+	TWeakObjectPtr<UObject> ResolvedObjectPIE = nullptr;
 };
 
 USTRUCT()
