@@ -138,7 +138,6 @@ void SAnyObjectDetails::RegisterSequencer(TSharedRef<ISequencer> Sequencer)
 	}
 }
 
-
 FReply SAnyObjectDetails::OnSelectObjectClicked()
 {
 	auto Object = ObjectValue.Resolve(GEditor->IsPlayingSessionInEditor());
@@ -202,9 +201,10 @@ void GetAllCategories(const UObject* Object, TArray<FName> &OutResult)
 	}
 }
 
-FReply SAnyObjectDetails::OnCategoriesClicked()
+FReply SAnyObjectDetails::OnCategorySettingsClicked()
 {
-	bCategoryFilterVisibility = !bCategoryFilterVisibility;
+	// Loop state.
+	ObjectValue.CategorySettings.SettingsState = (EDetailsWorkspaceCategorySettingState) (((int)ObjectValue.CategorySettings.SettingsState + 1) % (int)EDetailsWorkspaceCategorySettingState::NUM);
 	return FReply::Handled();
 }
 
@@ -229,10 +229,9 @@ void SAnyObjectDetails::Construct(const FArguments& InArgs, FTabId InTabID)
         auto t = MakeShared<FCustomDetailsLayout>();
         t->OnGetCategoryVisibiliy = FCustomDetailsLayout::FOnGetCategoryVisibiliy::CreateLambda([this](FName Cateogry)
         {
-            return !ObjectValue.HiddenCategories.Contains(Cateogry);
+            return ObjectValue.CategorySettings.ShouldShow(Cateogry);
         });
 		t->OnGetCategories = FCustomDetailsLayout::FOnGetCategories::CreateSP(this, &SAnyObjectDetails::OnGetCategoryNames);
-			
         return t;
     }));
 	DetailsView->SetKeyframeHandler(FKeyFrameHandler::Get());
@@ -264,7 +263,7 @@ void SAnyObjectDetails::Construct(const FArguments& InArgs, FTabId InTabID)
 				
                 + SHorizontalBox::Slot()[
                     SNew(SButton)
-                    .OnClicked(FOnClicked::CreateSP(this, &SAnyObjectDetails::OnCategoriesClicked))
+                    .OnClicked(FOnClicked::CreateSP(this, &SAnyObjectDetails::OnCategorySettingsClicked))
                     .ButtonStyle(FEditorStyle::Get(), "HoverHintOnly")
                     [
 						SNew(STextBlock)
@@ -274,7 +273,7 @@ void SAnyObjectDetails::Construct(const FArguments& InArgs, FTabId InTabID)
                         .ColorAndOpacity_Lambda(
                         	[this]()
                         	{
-                        		return ObjectValue.HiddenCategories.Num() > 0 ? FLinearColor::White : FLinearColor(0.66f, 0.66f, 0.66f, 0.66f);
+                        		return ObjectValue.CategorySettings.IsActive() ? FLinearColor::White : FLinearColor(0.66f, 0.66f, 0.66f, 0.66f);
                         	})
                     ]
                 ]
@@ -284,7 +283,10 @@ void SAnyObjectDetails::Construct(const FArguments& InArgs, FTabId InTabID)
 			+ SVerticalBox::Slot()
             [
 				SAssignNew(CategoryFilterRoot, SBorder)
-				.Visibility_Lambda([this](){ return bCategoryFilterVisibility ? EVisibility::Visible : EVisibility::Collapsed; })
+				.Visibility_Lambda([this]()
+				{
+					return ObjectValue.CategorySettings.SettingsState != EDetailsWorkspaceCategorySettingState::Closed ? EVisibility::Visible : EVisibility::Collapsed;
+				})
             ]
 			.AutoHeight()
 			+ SVerticalBox::Slot()
@@ -310,27 +312,87 @@ UObject* SAnyObjectDetails::GetObjectAuto()
 
 void SAnyObjectDetails::OnCategoryFilterCheckStateChanged(ECheckBoxState State, FName Category)
 {
-	if (State == ECheckBoxState::Checked)
+	auto SettingsState = ObjectValue.CategorySettings.SettingsState;
+	if (SettingsState == EDetailsWorkspaceCategorySettingState::PickShowOnly)
 	{
-		ObjectValue.HiddenCategories.Remove(Category);
-	}else
-	{
-		ObjectValue.HiddenCategories.Add(Category);
+		ObjectValue.CategorySettings.ShowOnlyCategory = Category;
 	}
+	else if (SettingsState == EDetailsWorkspaceCategorySettingState::MultiSelectFilter)
+	{
+		if (State == ECheckBoxState::Checked)
+		{
+			ObjectValue.CategorySettings.HiddenCategories.Remove(Category);
+		}
+		else
+		{
+			ObjectValue.CategorySettings.HiddenCategories.Add(Category);
+		}
+	}
+	else
+	{
+		//Shouldn't happen.
+		ensure(false);
+	}
+	
 	if (ensure(DetailsView))
 		DetailsView->ForceRefresh();
 }
 
+static FName CategoryAll = NAME_None;
+
 ECheckBoxState SAnyObjectDetails::OnGetCategoryFilterCheckState(FName Category) const
 {
-	if (ObjectValue.HiddenCategories.Contains(Category))
+	auto CurrentState = ObjectValue.CategorySettings.SettingsState;
+	if (CurrentState == EDetailsWorkspaceCategorySettingState::MultiSelectFilter)
 	{
-		return ECheckBoxState::Unchecked;
+		if (ObjectValue.CategorySettings.HiddenCategories.Contains(Category))
+		{
+			return ECheckBoxState::Unchecked;
+		}
+		else
+		{
+			return ECheckBoxState::Checked;
+		}
+	}
+	else if (CurrentState == EDetailsWorkspaceCategorySettingState::PickShowOnly)
+	{
+		return ObjectValue.CategorySettings.ShowOnlyCategory == Category ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
 	}
 	else
 	{
 		return ECheckBoxState::Checked;
 	}
+}
+
+FLinearColor SAnyObjectDetails::CategorySettingLabelColor(FName Category) const
+{
+	return OnGetCategoryFilterCheckState(Category) == ECheckBoxState::Checked ? FLinearColor::White : FLinearColor(0.5f, 0.5f, 0.5f);
+}
+
+EVisibility SAnyObjectDetails::CategorySettingLabelVisibility(FName Cateogry) const
+{
+	auto CurrentState = ObjectValue.CategorySettings.SettingsState;
+	if (CurrentState == EDetailsWorkspaceCategorySettingState::MultiSelectFilter)
+	{
+		if (Cateogry == CategoryAll)
+			return EVisibility::Collapsed;
+		else
+			return EVisibility::Visible;
+	}
+	else if (CurrentState == EDetailsWorkspaceCategorySettingState::PickShowOnly)
+	{
+		if (ObjectValue.CategorySettings.HiddenCategories.Contains(Cateogry))
+			return EVisibility::Collapsed;
+		else
+			return EVisibility::Visible;
+	}
+	else
+	{
+		//Closed.
+		return EVisibility::Collapsed;
+	}
+
+	return EVisibility::Visible;
 }
 
 void SAnyObjectDetails::OnGetCategoryNames(TArray<FName> Val)
@@ -342,23 +404,33 @@ void SAnyObjectDetails::OnGetCategoryNames(TArray<FName> Val)
 	auto Box = SNew(SWrapBox).UseAllottedSize(true);
 
 	AvailableCategories.Sort([](const FName& a, const FName& b){return a.FastLess(b);});
+
+	AvailableCategories.Insert(CategoryAll, 0);
 	for(auto t : AvailableCategories)
 	{
-		Box->AddSlot()[
+		Box->AddSlot()
+		[
             SNew(SBorder)
             .BorderImage(FEditorStyle::GetBrush("ToolPanel.DarkGroupBorder"))
-            .ColorAndOpacity_Lambda( [this, t]()
-				{
-					return GetObserveItem().HiddenCategories.Contains(t) ? FLinearColor(0.5f, 0.5f, 0.5f) : FLinearColor::White;
-				})
+            .ColorAndOpacity(this, &SAnyObjectDetails::CategorySettingLabelColor, t)
             [
                 SNew(SCheckBox)
+                .Style(&FCoreStyle::Get().GetWidgetStyle<FCheckBoxStyle>("ToggleButtonCheckbox"))
                 .OnCheckStateChanged(this, &SAnyObjectDetails::OnCategoryFilterCheckStateChanged, t)
                 .IsChecked(this, &SAnyObjectDetails::OnGetCategoryFilterCheckState, t)
+                .Padding(2.0f)
                 [
-                    SNew(STextBlock).Text(FText::FromString(t.ToString()))
+                    SNew(STextBlock)
+                    .Text_Lambda(
+                    	[t]()
+                    	{
+                    		return t == CategoryAll ? LOCTEXT("All", "All") : FText::FromString(t.ToString());	
+                    	}
+                    )
+                    .ShadowOffset(FVector2D(1.0f, 1.0f))
                 ]
             ]
+            .Visibility(this, &SAnyObjectDetails::CategorySettingLabelVisibility, t)
         ].Padding(2.0f);
 	}
 

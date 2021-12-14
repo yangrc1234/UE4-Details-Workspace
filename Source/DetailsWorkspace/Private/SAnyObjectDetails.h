@@ -31,12 +31,13 @@ private:
 
 	FReply OnSelectObjectClicked();
 	FText GetHintText() const;
-	FReply OnCategoriesClicked();
+	FReply OnCategorySettingsClicked();
 	void OnCategoryFilterCheckStateChanged(ECheckBoxState State, FName Category);
 	ECheckBoxState OnGetCategoryFilterCheckState(FName Category) const;
+	FLinearColor CategorySettingLabelColor(FName Category) const;
+	EVisibility CategorySettingLabelVisibility(FName Cateogry) const;
 	void OnGetCategoryNames(TArray<FName> Val);
-	
-	bool bCategoryFilterVisibility = false;
+
 	TSharedPtr<SBorder> CategoryFilterRoot;
 	TArray<FName> AvailableCategories;
 	TWeakObjectPtr<UObject> CurrentWatching;

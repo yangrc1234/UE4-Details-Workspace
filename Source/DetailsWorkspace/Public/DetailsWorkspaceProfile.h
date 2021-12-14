@@ -4,6 +4,40 @@
 
 FString GetPrettyNameForDetailsWorkspaceObject(UObject* Object);
 
+UENUM()
+enum class EDetailsWorkspaceCategorySettingState
+{
+	Closed,	// The area is collapsed. 
+    PickShowOnly,	// The area is open. When user click an item, only target category is shown. Only non-filtered categories appear for chosen.    
+    MultiSelectFilter,	// The area is open. When user click an item, toggles it visibility. in select mode, and corresponding properties visibility.
+    NUM
+};
+
+USTRUCT()
+struct FDetailsWorkspaceCategorySettings
+{
+	GENERATED_BODY()
+	
+	UPROPERTY(EditAnywhere)
+	EDetailsWorkspaceCategorySettingState SettingsState = EDetailsWorkspaceCategorySettingState::Closed;
+
+	UPROPERTY(EditAnywhere)
+	TArray<FName> HiddenCategories;
+
+	UPROPERTY(EditAnywhere)
+	FName ShowOnlyCategory = NAME_None;
+
+	bool IsActive()
+	{
+		return ShowOnlyCategory != NAME_None || HiddenCategories.Num() > 0;
+	}
+	
+	bool ShouldShow(FName Category)
+	{
+		return !HiddenCategories.Contains(Category)  && (ShowOnlyCategory == NAME_None || ShowOnlyCategory == Category);
+	}
+};
+
 USTRUCT()
 struct FDetailsWorkspaceObservedItem
 {
@@ -23,7 +57,7 @@ struct FDetailsWorkspaceObservedItem
 	FName SubObjectName = NAME_None;
 
 	UPROPERTY(EditAnywhere)
-	TArray<FName> HiddenCategories;
+	FDetailsWorkspaceCategorySettings CategorySettings;
 
 private:
 	TWeakObjectPtr<UObject> ResolvedObject = nullptr;
