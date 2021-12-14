@@ -1,17 +1,22 @@
 ﻿#pragma once
 #include "DetailsWorkspaceProfile.h"
+#include "ISequencer.h"
 #include "Slate.h"
 #include "SlateCore.h"
 
 class SAnyObjectDetails : public SCompoundWidget
 {
+
+public:
 	SLATE_BEGIN_ARGS(SAnyObjectDetails)
 	{}
 	SLATE_ATTRIBUTE(bool, AutoInspectPIE)
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs, FTabId InTabID);
-	
+	~SAnyObjectDetails();
+
+	inline static void RegisterSequencer(TSharedRef<ISequencer> Sequencer);
 
 	UObject* GetObject(bool bPIE) { return ObjectValue.Resolve(bPIE); }
 	UObject* GetObjectAuto();
@@ -23,6 +28,7 @@ class SAnyObjectDetails : public SCompoundWidget
 	FTabId TabID;
 
 private:
+
 	FReply OnSelectObjectClicked();
 	FText GetHintText() const;
 	FReply OnCategoriesClicked();

@@ -29,4 +29,5 @@ private:
 
 private:
 	TSharedPtr<class FUICommandList> PluginCommands;
+	FDelegateHandle OnSequencerCreatedHandle;
 };

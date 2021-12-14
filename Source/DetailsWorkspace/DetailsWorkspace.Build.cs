@@ -44,8 +44,9 @@ public class DetailsWorkspace : ModuleRules
 				"Engine",
 				"EditorWidgets",
 				"EditorStyle",
-				"PropertyEditor"
-				// ... add private dependencies that you statically link with here ...	
+				"PropertyEditor",
+				"Sequencer",	
+				"MovieScene",
 			}
 			);
 		
