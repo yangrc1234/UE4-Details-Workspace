@@ -272,7 +272,7 @@ void SAnyObjectDetails::Construct(const FArguments& InArgs, FTabId InTabID)
 					[
 						SNew(STextBlock)
 	                    .Font(FEditorStyle::Get().GetFontStyle("FontAwesome.11"))
-	                    .Text(FEditorFontGlyphs::Search)
+	                    .Text(FEditorFontGlyphs::Mouse_Pointer)
 	                    .ShadowOffset(FVector2D(1.0f, 1.0f))
 					]
 				]
@@ -312,13 +312,17 @@ void SAnyObjectDetails::Construct(const FArguments& InArgs, FTabId InTabID)
             	]
             	.AutoHeight()
             	+ SVerticalBox::Slot()[
-					SAssignNew(CategoryFilterRoot, SBorder)
-					.Visibility_Lambda([this]()
-					{
-						return ObjectValue.CategorySettings.SettingsState != EDetailsWorkspaceCategorySettingState::Closed ? EVisibility::Visible : EVisibility::Collapsed;
-					})
+            		SNew(SScrollBox)
+					.Orientation(Orient_Vertical)
+            		+ SScrollBox::Slot()[
+						SAssignNew(CategoryFilterRoot, SBorder)
+						.Visibility_Lambda([this]()
+						{
+							return ObjectValue.CategorySettings.SettingsState != EDetailsWorkspaceCategorySettingState::Closed ? EVisibility::Visible : EVisibility::Collapsed;
+						})
+					]
 				]
-				.AutoHeight()
+				.MaxHeight(120.0f)
             ]
 			.AutoHeight()
 			+ SVerticalBox::Slot()
