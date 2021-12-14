@@ -29,14 +29,16 @@ public:
 
 private:
 
-	FReply OnSelectObjectClicked();
+	ECheckBoxState OnGetSelectObjectButtonChecked() const;
+	void OnSelectObjectClicked(ECheckBoxState State);
 	FText GetHintText() const;
-	FReply OnCategoriesClicked();
+	void OnCategorySettingsClicked(ECheckBoxState);
 	void OnCategoryFilterCheckStateChanged(ECheckBoxState State, FName Category);
 	ECheckBoxState OnGetCategoryFilterCheckState(FName Category) const;
+	FLinearColor CategorySettingLabelColor(FName Category) const;
+	EVisibility CategorySettingLabelVisibility(FName Cateogry) const;
 	void OnGetCategoryNames(TArray<FName> Val);
-	
-	bool bCategoryFilterVisibility = false;
+
 	TSharedPtr<SBorder> CategoryFilterRoot;
 	TArray<FName> AvailableCategories;
 	TWeakObjectPtr<UObject> CurrentWatching;
