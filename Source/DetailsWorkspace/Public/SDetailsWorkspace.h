@@ -11,6 +11,7 @@ public:
 	SLATE_END_ARGS()
 
 	~SDetailsWorkspace();
+	
 	void Construct(const FArguments& Args, FString InstanceName, bool bLoadInstanceLastLayout);
 
 	// Reset to initial state. (Welcome tab)

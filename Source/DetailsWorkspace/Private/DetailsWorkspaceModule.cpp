@@ -5,7 +5,9 @@
 #include "SDetailsWorkspace.h"
 #include "DetailsWorkspaceStyle.h"
 #include "DetailsWorkspaceCommands.h"
+#include "ISequencerModule.h"
 #include "LevelEditor.h"
+#include "SAnyObjectDetails.h"
 #include "Widgets/Docking/SDockTab.h"
 #include "ToolMenus.h"
 
@@ -33,7 +35,6 @@ void FDetailsWorkspaceModule::StartupModule()
 		.SetDisplayName(LOCTEXT("FDetailsWorkspaceTabTitle", "DetailsWorkspace"))
 	.SetMenuType(ETabSpawnerMenuType::Hidden);
 	
-
 	{
 		MenuExtender = MakeShareable(new FExtender);
 		MenuExtender->AddMenuExtension("LevelEditor", 
@@ -44,6 +45,9 @@ void FDetailsWorkspaceModule::StartupModule()
 		FLevelEditorModule& LevelEditorModule = FModuleManager::LoadModuleChecked<FLevelEditorModule>("LevelEditor");
 		LevelEditorModule.GetMenuExtensibilityManager()->AddExtender(MenuExtender);
 	}
+
+	ISequencerModule &SequencerModule = FModuleManager::LoadModuleChecked<ISequencerModule>("Sequencer");
+	OnSequencerCreatedHandle = SequencerModule.RegisterOnSequencerCreated(FOnSequencerCreated::FDelegate::CreateStatic(&SAnyObjectDetails::RegisterSequencer));
 }
 
 void FDetailsWorkspaceModule::AddMenuEntry(FMenuBuilder& MenuBuilder)
@@ -68,6 +72,9 @@ void FDetailsWorkspaceModule::ShutdownModule()
 	FDetailsWorkspaceCommands::Unregister();
 
 	FGlobalTabmanager::Get()->UnregisterNomadTabSpawner(DetailsWorkspaceTabName);
+	
+	ISequencerModule &SequencerModule = FModuleManager::LoadModuleChecked<ISequencerModule>("Sequencer");
+	SequencerModule.UnregisterOnSequencerCreated(OnSequencerCreatedHandle);
 }
 
 TSharedRef<SDockTab> FDetailsWorkspaceModule::OnSpawnPluginTab(const FSpawnTabArgs& SpawnTabArgs)
