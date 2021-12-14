@@ -6,6 +6,7 @@
 #include "IDetailCustomization.h"
 #include "IDetailKeyframeHandler.h"
 #include "MovieSceneSequence.h"
+#include "Engine/Selection.h"
 
 #define LOCTEXT_NAMESPACE "DetailsWorkSpace"
 
@@ -138,9 +139,23 @@ void SAnyObjectDetails::RegisterSequencer(TSharedRef<ISequencer> Sequencer)
 	}
 }
 
-FReply SAnyObjectDetails::OnSelectObjectClicked()
+ECheckBoxState SAnyObjectDetails::OnGetSelectObjectButtonChecked() const
 {
-	auto Object = ObjectValue.Resolve(GEditor->IsPlayingSessionInEditor());
+	if (CurrentWatching.Get())
+	{
+		auto Object = CurrentWatching.Get();
+		const bool bSelected =
+			GEditor->GetSelectedActors()->IsSelected(Object) ||
+			GEditor->GetSelectedObjects()->IsSelected(Object) ||
+			GEditor->GetSelectedComponents()->IsSelected(Object);
+		return bSelected ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+	}
+	return ECheckBoxState::Unchecked;
+}
+
+void SAnyObjectDetails::OnSelectObjectClicked(ECheckBoxState State)
+{
+	auto Object = CurrentWatching.Get();
 	if (Object)
 	{
 		GEditor->SelectNone(false, true, false);
@@ -161,7 +176,6 @@ FReply SAnyObjectDetails::OnSelectObjectClicked()
 			GEditor->SyncBrowserToObjects(Temp);
 		}
 	}
-	return FReply::Handled();
 }
 
 FText SAnyObjectDetails::GetHintText() const
@@ -201,11 +215,11 @@ void GetAllCategories(const UObject* Object, TArray<FName> &OutResult)
 	}
 }
 
-FReply SAnyObjectDetails::OnCategorySettingsClicked()
+void SAnyObjectDetails::OnCategorySettingsClicked(ECheckBoxState)
 {
 	// Loop state.
 	ObjectValue.CategorySettings.SettingsState = (EDetailsWorkspaceCategorySettingState) (((int)ObjectValue.CategorySettings.SettingsState + 1) % (int)EDetailsWorkspaceCategorySettingState::NUM);
-	return FReply::Handled();
+	return;
 }
 
 BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
@@ -251,42 +265,60 @@ void SAnyObjectDetails::Construct(const FArguments& InArgs, FTabId InTabID)
 			[
 				SNew(SHorizontalBox)
 				+ SHorizontalBox::Slot()[
-					SNew(SButton)
-					.OnClicked(FOnClicked::CreateSP(this, &SAnyObjectDetails::OnSelectObjectClicked))
-					.ButtonStyle(FEditorStyle::Get(), "HoverHintOnly")
+	                SNew(SCheckBox)
+	                .Style(&FCoreStyle::Get().GetWidgetStyle<FCheckBoxStyle>("ToggleButtonCheckbox"))
+					.OnCheckStateChanged(FOnCheckStateChanged::CreateSP(this, &SAnyObjectDetails::OnSelectObjectClicked))
+					.IsChecked(this, &SAnyObjectDetails::OnGetSelectObjectButtonChecked)
 					[
-						SNew(SImage)
-						.Image(FEditorStyle::GetBrush("PropertyWindow.Button_Browse"))
+						SNew(STextBlock)
+	                    .Font(FEditorStyle::Get().GetFontStyle("FontAwesome.11"))
+	                    .Text(FEditorFontGlyphs::Search)
+	                    .ShadowOffset(FVector2D(1.0f, 1.0f))
 					]
 				]
 				.AutoWidth()
+				.VAlign(VAlign_Center)
+				.Padding(2.0f)
 				
-                + SHorizontalBox::Slot()[
-                    SNew(SButton)
-                    .OnClicked(FOnClicked::CreateSP(this, &SAnyObjectDetails::OnCategorySettingsClicked))
-                    .ButtonStyle(FEditorStyle::Get(), "HoverHintOnly")
+				+ SHorizontalBox::Slot()[
+                    SNew(SCheckBox)
+                    .Style(&FCoreStyle::Get().GetWidgetStyle<FCheckBoxStyle>("ToggleButtonCheckbox"))
+                    .OnCheckStateChanged(FOnCheckStateChanged::CreateSP(this, &SAnyObjectDetails::OnCategorySettingsClicked))
+                    .IsChecked_Lambda([this]()
+                    {
+	                    return ObjectValue.CategorySettings.SettingsState != EDetailsWorkspaceCategorySettingState::Closed ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+                    })
                     [
 						SNew(STextBlock)
-                        .TextStyle(FEditorStyle::Get(), "GenericFilters.TextStyle")
                         .Font(FEditorStyle::Get().GetFontStyle("FontAwesome.11"))
                         .Text(FEditorFontGlyphs::Filter)
-                        .ColorAndOpacity_Lambda(
-                        	[this]()
-                        	{
-                        		return ObjectValue.CategorySettings.IsActive() ? FLinearColor::White : FLinearColor(0.66f, 0.66f, 0.66f, 0.66f);
-                        	})
+                        .ShadowOffset(FVector2D(1.0f, 1.0f))
                     ]
                 ]
                 .AutoWidth()
+                .VAlign(VAlign_Center)
+                .Padding(2.0f)
 			]
 			.AutoHeight()			
 			+ SVerticalBox::Slot()
             [
-				SAssignNew(CategoryFilterRoot, SBorder)
-				.Visibility_Lambda([this]()
-				{
-					return ObjectValue.CategorySettings.SettingsState != EDetailsWorkspaceCategorySettingState::Closed ? EVisibility::Visible : EVisibility::Collapsed;
-				})
+            	SNew(SVerticalBox)
+            	+ SVerticalBox::Slot()[
+            		SNew(STextBlock).Text(LOCTEXT("ToggleToShowHideCategory", "Toggle to Show/Hide Category."))
+            		.Visibility_Lambda([this]()
+            		{
+            			return ObjectValue.CategorySettings.SettingsState == EDetailsWorkspaceCategorySettingState::MultiSelectFilter ? EVisibility::Visible : EVisibility::Collapsed;
+            		})
+            	]
+            	.AutoHeight()
+            	+ SVerticalBox::Slot()[
+					SAssignNew(CategoryFilterRoot, SBorder)
+					.Visibility_Lambda([this]()
+					{
+						return ObjectValue.CategorySettings.SettingsState != EDetailsWorkspaceCategorySettingState::Closed ? EVisibility::Visible : EVisibility::Collapsed;
+					})
+				]
+				.AutoHeight()
             ]
 			.AutoHeight()
 			+ SVerticalBox::Slot()
@@ -442,12 +474,6 @@ void SAnyObjectDetails::OnGetCategoryNames(TArray<FName> Val)
 void SAnyObjectDetails::SetObserveItem(FDetailsWorkspaceObservedItem Value)
 {	
 	ObjectValue = Value;
-	if (ObjectValue.Resolve(false))
-	{
-		auto Object = ObjectValue.Resolve(false);
-		//GetAllCategories(Object, AvailableCategories);
-	}
-	
 	AvailableCategories.Empty();
 	bAvailableCategoriesDirty = true;
 	

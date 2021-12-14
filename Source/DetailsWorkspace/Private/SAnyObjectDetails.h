@@ -29,9 +29,10 @@ public:
 
 private:
 
-	FReply OnSelectObjectClicked();
+	ECheckBoxState OnGetSelectObjectButtonChecked() const;
+	void OnSelectObjectClicked(ECheckBoxState State);
 	FText GetHintText() const;
-	FReply OnCategorySettingsClicked();
+	void OnCategorySettingsClicked(ECheckBoxState);
 	void OnCategoryFilterCheckStateChanged(ECheckBoxState State, FName Category);
 	ECheckBoxState OnGetCategoryFilterCheckState(FName Category) const;
 	FLinearColor CategorySettingLabelColor(FName Category) const;
