@@ -4,11 +4,99 @@
 #include "DetailLayoutBuilder.h"
 #include "EditorFontGlyphs.h"
 #include "IDetailCustomization.h"
+#include "IDetailKeyframeHandler.h"
+#include "MovieSceneSequence.h"
 
 #define LOCTEXT_NAMESPACE "DetailsWorkSpace"
 
+
 namespace
 {
+	TArray<TWeakPtr<ISequencer>> Sequencers;
+	
+	class FKeyFrameHandler : public IDetailKeyframeHandler
+	{
+		static TSharedPtr<FKeyFrameHandler> Singleton;
+	public:
+		static TSharedPtr<FKeyFrameHandler> Get()
+		{
+			if (!Singleton)
+			{
+				Singleton = MakeShared<FKeyFrameHandler>();
+			}
+			return Singleton;
+		}
+		
+		virtual bool IsPropertyKeyable(UClass* InObjectClass, const IPropertyHandle& InPropertyHandle) const
+		{
+			FCanKeyPropertyParams CanKeyPropertyParams(InObjectClass, InPropertyHandle);
+
+			for (const TWeakPtr<ISequencer>& WeakSequencer : Sequencers)
+			{
+				TSharedPtr<ISequencer> Sequencer = WeakSequencer.Pin();
+				if (Sequencer.IsValid() && Sequencer->CanKeyProperty(CanKeyPropertyParams))
+				{
+					return true;
+				}
+			}
+			return false;
+		}
+
+		virtual bool IsPropertyKeyingEnabled() const
+		{
+			for (const TWeakPtr<ISequencer>& WeakSequencer : Sequencers)
+			{
+				TSharedPtr<ISequencer> Sequencer = WeakSequencer.Pin();
+				if (Sequencer.IsValid() && Sequencer->GetFocusedMovieSceneSequence() && Sequencer->GetAllowEditsMode() != EAllowEditsMode::AllowLevelEditsOnly)
+				{
+					return true;
+				}
+			}
+			return false;
+		}
+
+		virtual bool IsPropertyAnimated(const IPropertyHandle& PropertyHandle, UObject *ParentObject) const
+		{
+			for (const TWeakPtr<ISequencer>& WeakSequencer : Sequencers)
+			{
+				TSharedPtr<ISequencer> Sequencer = WeakSequencer.Pin();
+				if (Sequencer.IsValid() && Sequencer->GetFocusedMovieSceneSequence())
+				{
+					FGuid ObjectHandle = Sequencer->GetHandleToObject(ParentObject);
+					if (ObjectHandle.IsValid()) 
+					{
+						UMovieScene* MovieScene = Sequencer->GetFocusedMovieSceneSequence()->GetMovieScene();
+						FProperty* Property = PropertyHandle.GetProperty();
+						TSharedRef<FPropertyPath> PropertyPath = FPropertyPath::CreateEmpty();
+						PropertyPath->AddProperty(FPropertyInfo(Property));
+						FName PropertyName(*PropertyPath->ToString(TEXT(".")));
+						TSubclassOf<UMovieSceneTrack> TrackClass; //use empty @todo find way to get the UMovieSceneTrack from the Property type.
+						return MovieScene->FindTrack(TrackClass, ObjectHandle, PropertyName) != nullptr;
+					}
+					
+					return false;
+				}
+			}
+			return false;
+		}
+		virtual void OnKeyPropertyClicked(const IPropertyHandle& KeyedPropertyHandle)
+		{
+			TArray<UObject*> Objects;
+			KeyedPropertyHandle.GetOuterObjects( Objects );
+			FKeyPropertyParams KeyPropertyParams(Objects, KeyedPropertyHandle, ESequencerKeyMode::ManualKeyForced);
+
+			for (const TWeakPtr<ISequencer>& WeakSequencer : Sequencers)
+			{
+				TSharedPtr<ISequencer> Sequencer = WeakSequencer.Pin();
+				if (Sequencer.IsValid())
+				{
+					Sequencer->KeyProperty(KeyPropertyParams);
+				}
+			}
+		}
+	};
+	TSharedPtr<FKeyFrameHandler> FKeyFrameHandler::Singleton;
+
 	class FCustomDetailsLayout : public IDetailCustomization
 	{
 	public:
@@ -36,6 +124,20 @@ namespace
 		}
 	};
 }
+
+TArray<SAnyObjectDetails*> gCreatedDetails;
+
+void SAnyObjectDetails::RegisterSequencer(TSharedRef<ISequencer> Sequencer)
+{
+	Sequencers.Add(Sequencer);
+	Sequencers.RemoveAll([](const TWeakPtr<ISequencer> t){ return !t.IsValid();});
+	
+	for(auto t : gCreatedDetails)
+	{
+		t->DetailsView->ForceRefresh();	
+	}
+}
+
 
 FReply SAnyObjectDetails::OnSelectObjectClicked()
 {
@@ -111,6 +213,8 @@ void SAnyObjectDetails::Construct(const FArguments& InArgs, FTabId InTabID)
 {
 	bAutoInspectPIE = InArgs._AutoInspectPIE;
 
+	gCreatedDetails.AddUnique(this);
+	
 	FPropertyEditorModule& PropertyEditorModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>(
 		"PropertyEditor");
 	FDetailsViewArgs DetailsViewArgs;
@@ -120,7 +224,6 @@ void SAnyObjectDetails::Construct(const FArguments& InArgs, FTabId InTabID)
 	
 	TabID = InTabID;
 	DetailsView = PropertyEditorModule.CreateDetailView(DetailsViewArgs);
-	
 	DetailsView->RegisterInstancedCustomPropertyLayout(UObject::StaticClass(), FOnGetDetailCustomizationInstance::CreateLambda([this]()
     {
         auto t = MakeShared<FCustomDetailsLayout>();
@@ -132,8 +235,7 @@ void SAnyObjectDetails::Construct(const FArguments& InArgs, FTabId InTabID)
 			
         return t;
     }));
-	
-	//DetailsView->SetIsPropertyVisibleDelegate(FIsPropertyVisible::CreateSP(this, &SAnyObjectDetails::OnPropertyVisible));
+	DetailsView->SetKeyframeHandler(FKeyFrameHandler::Get());
 	
 	ChildSlot
 	[
@@ -192,7 +294,13 @@ void SAnyObjectDetails::Construct(const FArguments& InArgs, FTabId InTabID)
 		]
 	];
 }
+
 END_SLATE_FUNCTION_BUILD_OPTIMIZATION
+
+SAnyObjectDetails::~SAnyObjectDetails()
+{
+	gCreatedDetails.Remove(this);	
+}
 
 UObject* SAnyObjectDetails::GetObjectAuto()
 {
