@@ -1,6 +1,7 @@
 ﻿#include "SSubObjectAddArea.h"
 
 #include "DetailsWorkspaceProfile.h"
+#include "Engine/Selection.h"
 
 #define LOCTEXT_NAMESPACE "DetailsWorkSpace"
 
@@ -15,12 +16,14 @@ void SSubObjectAddArea::Construct(const FArguments& Args)
 		+ SHorizontalBox::Slot()
 		[
 			SNew(SComboButton)
-			        .OnGetMenuContent(FOnGetContent::CreateSP(this, &SSubObjectAddArea::CreateDetailForObjectMenu))
-			        .ButtonContent()
+	        .OnGetMenuContent(FOnGetContent::CreateSP(this, &SSubObjectAddArea::CreateDetailForObjectMenu))
+	        .ButtonContent()
 			[
 				SNew(STextBlock)
 				.Text(this, &SSubObjectAddArea::OnGetPendingObservedObjectLabel)
+				.TextStyle(FEditorStyle::Get(), "FlatButton.DefaultTextStyle")
 			]
+			.ButtonStyle(FEditorStyle::Get(), "FlatButton.Default")
 		]
 		.AutoWidth()
 	];
@@ -28,21 +31,12 @@ void SSubObjectAddArea::Construct(const FArguments& Args)
 
 EVisibility SSubObjectAddArea::AddObjectButtonVisibility() const
 {
-	return PendingObservedObject.IsValid() ? EVisibility::Visible : EVisibility::Collapsed;
+	return (GEditor->GetSelectedActors()->Num() > 0 || GEditor->GetSelectedComponents()->Num() > 0 || GEditor->GetSelectedObjects()->Num() > 0) ? EVisibility::Visible : EVisibility::Collapsed;
 }
 
 FText SSubObjectAddArea::OnGetPendingObservedObjectLabel() const
 {
-	if (PendingObservedObject.Get())
-	{
-		return FText::Format(
-			LOCTEXT("ChooseSubobjectToAdd", "Choose Subobject to add: {0}"),
-			FText::FromString(GetPrettyNameForDetailsWorkspaceObject(PendingObservedObject.Get())));
-	}
-	else
-	{
-		return FText::GetEmpty();
-	}
+	return LOCTEXT("Add", "Add Selected...");
 }
 
 void SSubObjectAddArea::SpawnNewDetailWidgetForObject(UObject* Object)
@@ -52,43 +46,62 @@ void SSubObjectAddArea::SpawnNewDetailWidgetForObject(UObject* Object)
 
 TSharedRef<SWidget> SSubObjectAddArea::CreateDetailForObjectMenu()
 {
-	if (!ensure(PendingObservedObject.Get())) // button should be hidden.
-		return SNew(SBorder);
-
 	FMenuBuilder MenuBuilder(true, nullptr, nullptr, true);
 
-	if (!OnVerifyObjectAddable.IsBound() || OnVerifyObjectAddable.Execute(PendingObservedObject.Get()))
+	auto DoForObject = [this, &MenuBuilder](UObject* Object)
 	{
-		MenuBuilder.AddMenuEntry(
-			LOCTEXT("AddThisObject", "Add This Object"),
-			FText::GetEmpty(),
-			FSlateIcon(),
-			FUIAction(FExecuteAction::CreateSP(this, &SSubObjectAddArea::SpawnNewDetailWidgetForObject,
-			                                   PendingObservedObject.Get()))
-		);
-	}
-
-	TArray<UObject*> SubObjects;
-	PendingObservedObject.Get()->GetDefaultSubobjects(SubObjects);
-
-	MenuBuilder.BeginSection(NAME_None, LOCTEXT("SubObjects", "Sub Objects"));
-	for (auto& t : SubObjects)
-	{
-		if (!OnVerifyObjectAddable.IsBound() || OnVerifyObjectAddable.Execute(t))
+		MenuBuilder.BeginSection(NAME_None, FText::FromString(Object->GetName()));
+		
+		if (!OnVerifyObjectAddable.IsBound() || OnVerifyObjectAddable.Execute(Object))
 		{
-			FFormatNamedArguments Arguments;
-			Arguments.Add(TEXT("Name"), FText::FromString(GetPrettyNameForDetailsWorkspaceObject(t)));
-
 			MenuBuilder.AddMenuEntry(
-				FText::Format(LOCTEXT("AddSubObjectFormat", "Add {Name}"), Arguments),
+				FText::Format(LOCTEXT("AddObjectName", "Add {0}"), FText::FromString(Object->GetName())),
 				FText::GetEmpty(),
 				FSlateIcon(),
-				FUIAction(FExecuteAction::CreateSP(this, &SSubObjectAddArea::SpawnNewDetailWidgetForObject, t))
+				FUIAction(FExecuteAction::CreateSP(this, &SSubObjectAddArea::SpawnNewDetailWidgetForObject, Object))
 			);
 		}
+
+		TArray<UObject*> SubObjects;
+		Object->GetDefaultSubobjects(SubObjects);
+
+		for (auto& t : SubObjects)
+		{
+			if (!OnVerifyObjectAddable.IsBound() || OnVerifyObjectAddable.Execute(t))
+			{
+				FFormatNamedArguments Arguments;
+				Arguments.Add(TEXT("Name"), FText::FromString(GetPrettyNameForDetailsWorkspaceObject(t)));
+
+				MenuBuilder.AddMenuEntry(
+					FText::Format(LOCTEXT("AddSubObjectFormat", "Add {Name}"), Arguments),
+					FText::GetEmpty(),
+					FSlateIcon(),
+					FUIAction(FExecuteAction::CreateSP(this, &SSubObjectAddArea::SpawnNewDetailWidgetForObject, t))
+				);
+			}
+		}
+
+		MenuBuilder.EndSection();
+	};
+
+	TArray<UObject*> Array;
+	GEditor->GetSelectedActors()->GetSelectedObjects(Array);
+	for(auto Actor : Array)
+	{
+		DoForObject(Actor);
 	}
 
-	MenuBuilder.EndSection();
+	GEditor->GetSelectedComponents()->GetSelectedObjects(Array);
+	for(auto Obj : Array)
+	{
+		DoForObject(Obj);
+	}
+
+	GEditor->GetSelectedObjects()->GetSelectedObjects(Array);
+	for(auto Obj : Array)
+	{
+		DoForObject(Obj);
+	}
 
 	return MenuBuilder.MakeWidget();
 }

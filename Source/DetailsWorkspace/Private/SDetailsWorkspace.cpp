@@ -39,7 +39,7 @@ static TSharedRef<FTabManager::FLayout> InitialLayout(int InitialDetailTabCount 
         );
 	}
 	
-	return FTabManager::NewLayout(TEXT("TestLayout"))
+	return FTabManager::NewLayout(TEXT("InitialLayout"))
         ->AddArea
         (
 			t
@@ -51,7 +51,19 @@ TSharedRef<SWidget> SDetailsWorkspace::CreateConfigArea(const FDetailsWorkspaceI
 {
 	SAssignNew(ConfigArea, SExpandableArea)
 		.HeaderContent()[
-			SNew(STextBlock).Text(LOCTEXT("Config", "Config"))
+			SNew(SHorizontalBox)
+			+ SHorizontalBox::Slot()[
+				SNew(STextBlock).Text(LOCTEXT("Config", "Config"))
+			]
+			.VAlign(VAlign_Center)
+			+ SHorizontalBox::Slot()[
+			    SAssignNew(SubObjectAddArea, SSubObjectAddArea)
+                .OnAddObjectConfirmed(SSubObjectAddArea::FAddObjectConfirmed::CreateSP(this, &SDetailsWorkspace::SpawnNewDetailWidgetForObject))
+                .OnVerifyObjectAddable(SSubObjectAddArea::FVerifyObjectAddable::CreateSP(this, &SDetailsWorkspace::IsNotObservingObject))
+            ]
+            .HAlign(HAlign_Right)
+            .VAlign(VAlign_Top)
+            .AutoWidth()
 		]
 		.BodyContent()[
 			
@@ -71,15 +83,6 @@ TSharedRef<SWidget> SDetailsWorkspace::CreateConfigArea(const FDetailsWorkspaceI
 	            .OnLayoutSelected(this, &SDetailsWorkspace::SwitchLayout, true)
 	        ].Padding(2.0f).VAlign(VAlign_Center)
 	        
-	        + SGridPanel::Slot(0, 1)[
-                SNew(STextBlock).Text(LOCTEXT("ObjectToAdd", "Object To Add: "))
-            ].Padding(2.0f).VAlign(VAlign_Center)
-            + SGridPanel::Slot(1, 1)[
-                SAssignNew(SubObjectAddArea, SSubObjectAddArea)
-                .OnAddObjectConfirmed(SSubObjectAddArea::FAddObjectConfirmed::CreateSP(this, &SDetailsWorkspace::SpawnNewDetailWidgetForObject))
-                .OnVerifyObjectAddable(SSubObjectAddArea::FVerifyObjectAddable::CreateSP(this, &SDetailsWorkspace::IsNotObservingObject))
-            ].Padding(2.0f).VAlign(VAlign_Center)
-
             + SGridPanel::Slot(0, 2)[
                 SNew(STextBlock).Text(LOCTEXT("AutoSwitchPIE", "Auto Switch to PIE Object"))
             ].Padding(2.0f).VAlign(VAlign_Center)
@@ -319,7 +322,12 @@ void SDetailsWorkspace::Construct(const FArguments& Args, FString InInstanceName
 		    SNew( SVerticalBox )
 		    +SVerticalBox::Slot()
             [
-	        	CreateConfigArea(Settings)
+            	SNew(SHorizontalBox)
+            	+ SHorizontalBox::Slot()[
+                    CreateConfigArea(Settings)
+                ]
+            	.HAlign(HAlign_Fill)
+                .FillWidth(1.0f)
             ]
             .Padding(2.0f)
             .AutoHeight()
@@ -549,16 +557,17 @@ FReply SDetailsWorkspace::OnObserveObjectDrop(TSharedPtr<FDragDropOperation> Op)
 	{
 		if (!Object)
 			return;
+		SpawnNewDetailWidgetForObject(Object);
+		/*
 		if (HasDefaultSubObject(Object))
 		{
 			SubObjectAddArea->PendingObservedObject = Object;
 			ConfigArea->SetExpanded(true);	//So user could see the add button.  
-			
 		}
 		else
 		{
 			SpawnNewDetailWidgetForObject(Object);
-		}
+		}*/
 	};
 	
 	if (Op->IsOfType<FActorDragDropOp>())

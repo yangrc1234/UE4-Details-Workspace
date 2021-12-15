@@ -80,6 +80,7 @@ namespace
 			}
 			return false;
 		}
+		
 		virtual void OnKeyPropertyClicked(const IPropertyHandle& KeyedPropertyHandle)
 		{
 			TArray<UObject*> Objects;
@@ -96,6 +97,7 @@ namespace
 			}
 		}
 	};
+	
 	TSharedPtr<FKeyFrameHandler> FKeyFrameHandler::Singleton;
 
 	class FCustomDetailsLayout : public IDetailCustomization
@@ -438,10 +440,10 @@ void SAnyObjectDetails::OnGetCategoryNames(TArray<FName> Val)
 	bAvailableCategoriesDirty = false;
 	AvailableCategories = Val;
 	auto Box = SNew(SWrapBox).UseAllottedSize(true);
-
-	AvailableCategories.Sort([](const FName& a, const FName& b){return a.FastLess(b);});
-
 	AvailableCategories.Insert(CategoryAll, 0);
+
+	//AvailableCategories.Sort([](const FName& a, const FName& b){return a.FastLess(b);});
+
 	for(auto t : AvailableCategories)
 	{
 		Box->AddSlot()
