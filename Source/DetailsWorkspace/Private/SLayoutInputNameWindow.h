@@ -24,6 +24,7 @@ public:
 
 private:
 	FReply OnConfirmClicked();
+	virtual FReply OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent) override;
 
 	void OnTextChanged(const FText& Input)
 	{
