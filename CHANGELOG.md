@@ -1,5 +1,14 @@
 ﻿# Changelog
 
+## 0.3.0
+### Added
+- By default, 4 DetailsWorkspace window can be opened by default.  
+- Add a search box to layout selection.
+
+### Changed  
+- "Add subobject" combo button is at top-level.  
+- The UE4 "TransformCommon" category name is redirected to "Transform", for less confusion.  
+
 ## 0.2.0
 ### Added
 - Support category filtering.
