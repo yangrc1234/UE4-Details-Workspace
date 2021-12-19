@@ -20,7 +20,7 @@
 static FName WelcomePageTabID = TEXT("Welcome");
 static FName NormalTabID = TEXT("Normal");
 
-static TSharedRef<FTabManager::FLayout> InitialLayout(int InitialDetailTabCount = 16, bool bContainWelcomeTab = true)
+static TSharedRef<FTabManager::FLayout> InitialLayout(int InitialDetailTabCount, bool bContainWelcomeTab)
 {
 	auto t = FTabManager::NewPrimaryArea();
 
@@ -375,7 +375,7 @@ void SDetailsWorkspace::Construct(const FArguments& Args, FString InInstanceName
 void SDetailsWorkspace::ResetLayoutToInitial(bool bContainWelcomeTab)
 {
 	TabManager->CloseAllAreas();
-	TSharedRef<FTabManager::FLayout> Layout = InitialLayout(bContainWelcomeTab);
+	TSharedRef<FTabManager::FLayout> Layout = InitialLayout(16, bContainWelcomeTab);
 	DockingTabsContainer->SetContent(
         TabManager->RestoreFrom(Layout, GetParentWindow()).ToSharedRef()
     );
