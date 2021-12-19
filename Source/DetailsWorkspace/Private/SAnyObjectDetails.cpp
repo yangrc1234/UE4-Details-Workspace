@@ -467,6 +467,11 @@ void SAnyObjectDetails::OnGetCategoryNames(TArray<FName> Val)
 	}
 	
 	AvailableCategories = Val;
+	AvailableCategories.Sort([](const FName& A, const FName& B)
+	{
+		return A.ToString().Compare(B.ToString()) < 0;
+	});
+	
 	auto Box = SNew(SWrapBox).UseAllottedSize(true);
 	AvailableCategories.Insert(CategoryAll, 0);
 
