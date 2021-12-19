@@ -37,9 +37,9 @@ Currently it's only tested on 4.27. But it's mostly plain slate code, so I suppo
 3. Open the window, you should see:  
 ![](Images/FirstOpen.png)  
 
-4. Drag any asset/actor onto the window.
-    * If it has no sub-object(Component), a Detail tab will be created.  
-    * Otherwise, you will need to select what to add in the menu.   
+4. Create tab for your object.
+    * Drag any asset/actor onto the window to add it.
+    * Select actor in World Outliner normally, a button will appear allowing you to add its component.  
     
 5. Change the layout as you like.
 
@@ -49,3 +49,4 @@ Currently it's only tested on 4.27. But it's mostly plain slate code, so I suppo
    * This is UE4 limitation, and might can't be "fixed".  
 * Once you add an object to the layout, the level package might be marked dirty(Ask you to save before exit). You must save it, otherwise reference could be lost next time you open the level.     
     * This is because we use LazyObjectPtr to store the reference, which might edit the object in level to store a persistent GUID. 
+* The layout info is saved under you developer folder("Devvelopers/\[YourUserName\]/DetailsWorkspaceLayoutProfile).  
