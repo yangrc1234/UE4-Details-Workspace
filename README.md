@@ -17,11 +17,12 @@ Currently it's only tested on 4.27. But it's mostly plain slate code, so I suppo
 
 ## Features  
 * Any actor/component/asset is supported.  
-* Save/Load/Switch multiple layouts as you want.(Including in-level actor/components).   
+* Save/Load/Switch multiple layouts as you want. (In-level actor/components can be saved as well!).   
 * Support category filtering. 
-    * "Show-Only Category"(UE5) and "Hide Category" are supported.  
+    * "Show-Only Category"(UE5 style) and "Hide Category" are supported.  
 * PIE object auto switch.  
-    * Can be turned off in settings.  
+* Support Sequencer key frame button.  
+    * Surprisingly UE4 doesn't automatically do this for you, if you create Details yourself.  
 * Will be maintained.
     * I'm using this for serious purpose in my work.  
 
@@ -48,5 +49,5 @@ Currently it's only tested on 4.27. But it's mostly plain slate code, so I suppo
 ## Note  
 * Drag-n-drop is not supported for Component. You need to drag/select the actor, and add component from menu.
    * This is UE4 limitation, and might can't be "fixed".  
-* Once you add an object to the layout, the level package might be marked dirty(Ask you to save before exit).  
-    * This is because we use LazyObjectPtr to store the reference, which might edit the in-level to store a persistent GUID. You must save it, otherwise reference could be lost next time you open the level.  
+* Once you add an object to the layout, the level package might be marked dirty(Ask you to save before exit). You must save it, otherwise reference could be lost next time you open the level.     
+    * This is because we use LazyObjectPtr to store the reference, which might edit the object in level to store a persistent GUID. 

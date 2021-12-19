@@ -10,7 +10,6 @@
 #include "SLayoutInputNameWindow.h"
 #include "DragAndDrop/ActorDragDropOp.h"
 #include "DragAndDrop/AssetDragDropOp.h"
-#include "Widgets/Layout/SExpandableArea.h"
 #include "Widgets/Layout/SGridPanel.h"
 #include "HAL/PlatformApplicationMisc.h"
 #include "SLayoutSelectionComboButton.h"
@@ -38,15 +37,13 @@ static TSharedRef<FTabManager::FLayout> InitialLayout(int InitialDetailTabCount 
             FTabManager::NewStack()
             ->AddTab(FName(FString::Printf(TEXT("%s%d"), *NormalTabID.ToString(), i)), ETabState::ClosedTab)
         );
-	}
-	
+	}	
 	return FTabManager::NewLayout(TEXT("InitialLayout"))
         ->AddArea
         (
 			t
         );
 }
-
 
 TSharedRef<SWidget> SDetailsWorkspace::CreateConfigArea(const FDetailsWorkspaceInstanceSettings* Settings)
 {
@@ -566,16 +563,6 @@ FReply SDetailsWorkspace::OnObserveObjectDrop(TSharedPtr<FDragDropOperation> Op)
 		if (!Object)
 			return;
 		SpawnNewDetailWidgetForObject(Object);
-		/*
-		if (HasDefaultSubObject(Object))
-		{
-			SubObjectAddArea->PendingObservedObject = Object;
-			ConfigArea->SetExpanded(true);	//So user could see the add button.  
-		}
-		else
-		{
-			SpawnNewDetailWidgetForObject(Object);
-		}*/
 	};
 	
 	if (Op->IsOfType<FActorDragDropOp>())
