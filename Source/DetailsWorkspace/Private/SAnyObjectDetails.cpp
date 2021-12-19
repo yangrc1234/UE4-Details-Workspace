@@ -7,6 +7,7 @@
 #include "IDetailKeyframeHandler.h"
 #include "MovieSceneSequence.h"
 #include "Engine/Selection.h"
+#include "LevelSequence.h"
 
 #define LOCTEXT_NAMESPACE "DetailsWorkSpace"
 
@@ -132,6 +133,13 @@ TArray<SAnyObjectDetails*> gCreatedDetails;
 
 void SAnyObjectDetails::RegisterSequencer(TSharedRef<ISequencer> Sequencer)
 {
+	// TemplateSequence is causing problems.
+	// Limit to LevelSequence only.
+	if (!Sequencer->GetFocusedMovieSceneSequence()->IsA(ULevelSequence::StaticClass()))
+	{
+		return;
+	}
+	
 	Sequencers.Add(Sequencer);
 	Sequencers.RemoveAll([](const TWeakPtr<ISequencer> t){ return !t.IsValid();});
 	
