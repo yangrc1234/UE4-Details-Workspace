@@ -2,6 +2,7 @@
 
 #include "DetailsWorkspaceProfile.h"
 #include "AssetToolsModule.h"
+#include "EditorFontGlyphs.h"
 #include "FileHelpers.h"
 #include "IContentBrowserSingleton.h"
 #include "SAnyObjectDetails.h"
@@ -9,7 +10,6 @@
 #include "SLayoutInputNameWindow.h"
 #include "DragAndDrop/ActorDragDropOp.h"
 #include "DragAndDrop/AssetDragDropOp.h"
-#include "Widgets/Layout/SExpandableArea.h"
 #include "Widgets/Layout/SGridPanel.h"
 #include "HAL/PlatformApplicationMisc.h"
 #include "SLayoutSelectionComboButton.h"
@@ -20,13 +20,17 @@
 static FName WelcomePageTabID = TEXT("Welcome");
 static FName NormalTabID = TEXT("Normal");
 
-static TSharedRef<FTabManager::FLayout> InitialLayout(int InitialDetailTabCount = 16)
+static TSharedRef<FTabManager::FLayout> InitialLayout(int InitialDetailTabCount, bool bContainWelcomeTab)
 {
 	auto t = FTabManager::NewPrimaryArea();
-	t->Split(
-        FTabManager::NewStack()
-        ->AddTab(WelcomePageTabID, ETabState::OpenedTab)
-	);
+
+	if (bContainWelcomeTab)
+	{
+		t->Split(
+	        FTabManager::NewStack()
+	        ->AddTab(WelcomePageTabID, ETabState::OpenedTab)
+		);
+	}
 
 	// We add some "closed" tabs.
 	// Though at this moment, tab spawner is not registered, this still works.
@@ -37,71 +41,44 @@ static TSharedRef<FTabManager::FLayout> InitialLayout(int InitialDetailTabCount 
             FTabManager::NewStack()
             ->AddTab(FName(FString::Printf(TEXT("%s%d"), *NormalTabID.ToString(), i)), ETabState::ClosedTab)
         );
-	}
-	
-	return FTabManager::NewLayout(TEXT("TestLayout"))
+	}	
+	return FTabManager::NewLayout(TEXT("InitialLayout"))
         ->AddArea
         (
 			t
         );
 }
 
-
 TSharedRef<SWidget> SDetailsWorkspace::CreateConfigArea(const FDetailsWorkspaceInstanceSettings* Settings)
 {
-	SAssignNew(ConfigArea, SExpandableArea)
-		.HeaderContent()[
-			SNew(STextBlock).Text(LOCTEXT("Config", "Config"))
-		]
-		.BodyContent()[
-			
+	SAssignNew(ConfigArea, SBorder).Content()
+	[
 		SNew(SGridPanel)
-            .FillColumn(0, 0.2f)
-            .FillColumn(1, 0.8f)
-            + SGridPanel::Slot(0, 0)[
-                SNew(STextBlock).Text(LOCTEXT("LayoutLabel", "Layout"))
-            ].Padding(2.0f).VAlign(VAlign_Center)
-            + SGridPanel::Slot(1, 0)[	
-				SAssignNew(LayoutSelectComboButton, SLayoutSelectionComboButton)
-	            .OnLayoutDeleteClicked(this, &SDetailsWorkspace::DeleteLayoutWithDialog)
-	            .OnCreateNewLayout(this, &SDetailsWorkspace::CreateNewLayoutWithDialog)
-	            .OnCreateNewLayoutByCopying(this, &SDetailsWorkspace::CreateNewLayoutByCopyingWithDialog)
-	            .OnRenameLayout(this, &SDetailsWorkspace::CreateRenameCurrentLayoutWindow)
-	            .SelectedLayoutName(this, &SDetailsWorkspace::OnGetCurrentLayoutName)
-	            .OnLayoutSelected(this, &SDetailsWorkspace::SwitchLayout, true)
-	        ].Padding(2.0f).VAlign(VAlign_Center)
-	        
-	        + SGridPanel::Slot(0, 1)[
-                SNew(STextBlock).Text(LOCTEXT("ObjectToAdd", "Object To Add: "))
-            ].Padding(2.0f).VAlign(VAlign_Center)
-            + SGridPanel::Slot(1, 1)[
-                SAssignNew(SubObjectAddArea, SSubObjectAddArea)
-                .OnAddObjectConfirmed(SSubObjectAddArea::FAddObjectConfirmed::CreateSP(this, &SDetailsWorkspace::SpawnNewDetailWidgetForObject))
-                .OnVerifyObjectAddable(SSubObjectAddArea::FVerifyObjectAddable::CreateSP(this, &SDetailsWorkspace::IsNotObservingObject))
-            ].Padding(2.0f).VAlign(VAlign_Center)
+        .FillColumn(0, 0.2f)
+        .FillColumn(1, 0.8f)
+        + SGridPanel::Slot(0, 2)[
+            SNew(STextBlock).Text(LOCTEXT("AutoSwitchPIE", "Auto Switch to PIE Object"))
+        ].Padding(2.0f).VAlign(VAlign_Center)
+        + SGridPanel::Slot(1, 2)[
+            SAssignNew(AutoPIECheckBox, SCheckBox)
+        ].Padding(2.0f).VAlign(VAlign_Center)
 
-            + SGridPanel::Slot(0, 2)[
-                SNew(STextBlock).Text(LOCTEXT("AutoSwitchPIE", "Auto Switch to PIE Object"))
-            ].Padding(2.0f).VAlign(VAlign_Center)
-            + SGridPanel::Slot(1, 2)[
-                SAssignNew(AutoPIECheckBox, SCheckBox)
-            ].Padding(2.0f).VAlign(VAlign_Center)
-
-            + SGridPanel::Slot(0, 3)[
-                SNew(STextBlock).Text(LOCTEXT("EnableDeveloperMode", "Enable Developer Mode"))
-            ].Padding(2.0f).VAlign(VAlign_Center)
-            + SGridPanel::Slot(1, 3)[
-                SAssignNew(DeveloperModeCheckerbox, SCheckBox)
-            ].Padding(2.0f).VAlign(VAlign_Center)
-            
-            + SGridPanel::Slot(0, 4).ColumnSpan(2)[
-            	SNew(SButton)
-            	.OnClicked(FOnClicked::CreateSP(this, &SDetailsWorkspace::CopyCurrentLayoutStringToClipboard))
-            	[
-					SNew(STextBlock).Text(LOCTEXT("CopyLayoutStringToClipboard", "Copy Layout String To Clipboard"))
-                ]
-            ].Padding(2.0f).VAlign(VAlign_Center)
-        ];
+        + SGridPanel::Slot(0, 3)[
+            SNew(STextBlock).Text(LOCTEXT("EnableDeveloperMode", "Enable Developer Mode"))
+        ].Padding(2.0f).VAlign(VAlign_Center)
+        + SGridPanel::Slot(1, 3)[
+            SAssignNew(DeveloperModeCheckerbox, SCheckBox)
+        ].Padding(2.0f).VAlign(VAlign_Center)
+        
+        + SGridPanel::Slot(0, 4).ColumnSpan(2)[
+            SNew(SButton)
+            .OnClicked(FOnClicked::CreateSP(this, &SDetailsWorkspace::CopyCurrentLayoutStringToClipboard))
+            [
+				SNew(STextBlock).Text(LOCTEXT("CopyLayoutStringToClipboard", "Copy Layout String To Clipboard"))
+            ]
+        ].Padding(2.0f).VAlign(VAlign_Center)
+    ]
+	.Visibility_Lambda([this](){ return SettingsOpenCheckBox->IsChecked() ? EVisibility::Visible : EVisibility::Collapsed; })	;
 
 	if (Settings)
 	{
@@ -109,7 +86,6 @@ TSharedRef<SWidget> SDetailsWorkspace::CreateConfigArea(const FDetailsWorkspaceI
 		DeveloperModeCheckerbox->SetIsChecked(Settings->bDeveloperMode);
 	}
 	AutoPIECheckBox->SetIsChecked(true);
-	ConfigArea->SetExpanded(false);
 	
 	return ConfigArea.ToSharedRef();
 }
@@ -274,7 +250,7 @@ FText SDetailsWorkspace::GetLabel() const
 	return FText::FromString(WorkingLayoutName);
 }
 
-void SDetailsWorkspace::Construct(const FArguments& Args, FString InInstanceName, bool bLoadInstanceLastLayout)
+void SDetailsWorkspace::Construct(const FArguments& Args, FString InInstanceName, bool bLoadInstanceLastLayout, bool bOpenWelcomeTabIfInitial)
 {
 	this->InstanceName = InInstanceName;
 	
@@ -319,9 +295,50 @@ void SDetailsWorkspace::Construct(const FArguments& Args, FString InInstanceName
 		    SNew( SVerticalBox )
 		    +SVerticalBox::Slot()
             [
-	        	CreateConfigArea(Settings)
+            	SNew(SHorizontalBox)
+				+SHorizontalBox::Slot()[
+					SAssignNew(LayoutSelectComboButton, SLayoutSelectionComboButton)
+					.OnLayoutDeleteClicked(this, &SDetailsWorkspace::DeleteLayoutWithDialog)
+					.OnCreateNewLayout(this, &SDetailsWorkspace::CreateNewLayoutWithDialog)
+					.OnCreateNewLayoutByCopying(this, &SDetailsWorkspace::CreateNewLayoutByCopyingWithDialog)
+					.OnRenameLayout(this, &SDetailsWorkspace::CreateRenameCurrentLayoutWindow)
+					.SelectedLayoutName(this, &SDetailsWorkspace::OnGetCurrentLayoutName)
+					.OnLayoutSelected(this, &SDetailsWorkspace::SwitchLayout, true)
+				]
+				.HAlign(HAlign_Left)
+				.AutoWidth()
+				.Padding(2.0f)
+                + SHorizontalBox::Slot()[
+                    SAssignNew(SubObjectAddArea, SSubObjectAddArea)
+                    .OnAddObjectConfirmed(SSubObjectAddArea::FAddObjectConfirmed::CreateSP(this, &SDetailsWorkspace::SpawnNewDetailWidgetForObject))
+                    .OnVerifyObjectAddable(SSubObjectAddArea::FVerifyObjectAddable::CreateSP(this, &SDetailsWorkspace::IsNotObservingObject))
+                ]
+                .HAlign(HAlign_Left)
+                .AutoWidth()
+                .Padding(2.0f)
+                
+                + SHorizontalBox::Slot()
+                .FillWidth(1.0f)
+                
+                + SHorizontalBox::Slot()[
+                	SAssignNew(SettingsOpenCheckBox, SCheckBox)
+                	.Style(&FCoreStyle::Get().GetWidgetStyle<FCheckBoxStyle>("ToggleButtonCheckbox"))
+                    [
+                        SNew(STextBlock)
+                        .Font(FEditorStyle::Get().GetFontStyle("FontAwesome.11"))
+                        .Text(FEditorFontGlyphs::Cog)
+                        .ShadowOffset(FVector2D(1.0f, 1.0f))
+                    ]
+                ]
+                .HAlign(HAlign_Right)
+                .VAlign(VAlign_Center)
             ]
             .Padding(2.0f)
+            .AutoHeight()
+            +SVerticalBox::Slot()
+            [	
+				CreateConfigArea(Settings)
+            ]
             .AutoHeight()
 		    +SVerticalBox::Slot()
 		    .FillHeight( 1.0f )
@@ -351,14 +368,14 @@ void SDetailsWorkspace::Construct(const FArguments& Args, FString InInstanceName
 	}
 	else
 	{
-		ResetLayoutToInitial();
+		ResetLayoutToInitial(bOpenWelcomeTabIfInitial);
 	}
 }
 
-void SDetailsWorkspace::ResetLayoutToInitial()
+void SDetailsWorkspace::ResetLayoutToInitial(bool bContainWelcomeTab)
 {
 	TabManager->CloseAllAreas();
-	TSharedRef<FTabManager::FLayout> Layout = InitialLayout();
+	TSharedRef<FTabManager::FLayout> Layout = InitialLayout(16, bContainWelcomeTab);
 	DockingTabsContainer->SetContent(
         TabManager->RestoreFrom(Layout, GetParentWindow()).ToSharedRef()
     );
@@ -514,13 +531,11 @@ TSharedRef<SDockTab> SDetailsWorkspace::CreateWelcomeTab(const FSpawnTabArgs& Ar
                 SNew(STextBlock)
                 .Text(LOCTEXT("WelcomeTabContent",
                 	"Drop any actor/asset here to start.\n"
-                	"If actor/asset has subobject(Component), a button will appear for choosing in config.\n"
+                	"If actor/asset has subobject(Component), a drop-down button will appear for choosing in config.\n"
                 	"\n"
                     "You can freely re-arrange created tabs in this panel.\n"
-                	"\n"
-                	"Switch layout in config.\n"
                     "\n"
-                    "Layout will be saved on you closing the window, or layout switched.\n"
+                    "Layout will be saved on you closing the window, or before switching layout.\n"
                     "\n"
                     "You can close this Welcome tab. It doesn't do anything.\n"
                 ))
@@ -549,16 +564,7 @@ FReply SDetailsWorkspace::OnObserveObjectDrop(TSharedPtr<FDragDropOperation> Op)
 	{
 		if (!Object)
 			return;
-		if (HasDefaultSubObject(Object))
-		{
-			SubObjectAddArea->PendingObservedObject = Object;
-			ConfigArea->SetExpanded(true);	//So user could see the add button.  
-			
-		}
-		else
-		{
-			SpawnNewDetailWidgetForObject(Object);
-		}
+		SpawnNewDetailWidgetForObject(Object);
 	};
 	
 	if (Op->IsOfType<FActorDragDropOp>())
@@ -637,9 +643,9 @@ void SDetailsWorkspace::SpawnNewDetailWidgetForObject(UObject* InObject)
 }
 
 
-TSharedRef<SDetailsWorkspace> CreateDetailsWorkSpace(FString InstanceName, bool bLoadInstanceLastLayout)
+TSharedRef<SDetailsWorkspace> CreateDetailsWorkSpace(FString InstanceName, bool bLoadInstanceLastLayout, bool bOpenWelcomeTabIfInitial)
 {
-	return SNew(SDetailsWorkspace, InstanceName, bLoadInstanceLastLayout);
+	return SNew(SDetailsWorkspace, InstanceName, bLoadInstanceLastLayout, bOpenWelcomeTabIfInitial);
 }
 
 #undef LOCTEXT_NAMESPACE

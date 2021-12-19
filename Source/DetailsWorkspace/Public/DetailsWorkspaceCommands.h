@@ -6,6 +6,8 @@
 #include "Framework/Commands/Commands.h"
 #include "DetailsWorkspaceStyle.h"
 
+#define DETAILS_WORKSPACE_DEFAULT_INSTANCES 4
+
 class FDetailsWorkspaceCommands : public TCommands<FDetailsWorkspaceCommands>
 {
 public:
@@ -19,5 +21,5 @@ public:
 	virtual void RegisterCommands() override;
 
 public:
-	TSharedPtr< FUICommandInfo > OpenPluginWindow;
+	TStaticArray<TSharedPtr< FUICommandInfo >, DETAILS_WORKSPACE_DEFAULT_INSTANCES> OpenPluginWindow;
 };

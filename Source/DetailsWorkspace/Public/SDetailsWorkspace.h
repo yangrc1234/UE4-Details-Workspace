@@ -12,11 +12,11 @@ public:
 
 	~SDetailsWorkspace();
 	
-	void Construct(const FArguments& Args, FString InstanceName, bool bLoadInstanceLastLayout);
+	void Construct(const FArguments& Args, FString InstanceName, bool bLoadInstanceLastLayout, bool bOpenWelcomeTabIfInitial);
 
 	// Reset to initial state. (Welcome tab)
 	// This will erase current layout data.  
-	void ResetLayoutToInitial();
+	void ResetLayoutToInitial(bool bContainWelcomeTab = true);
 
 	// Restore layout from layout name.
 	// Will erase current layout data.
@@ -89,7 +89,8 @@ private:
 	TSharedPtr<SCheckBox> AutoPIECheckBox;
 	TSharedPtr<SCompoundWidget> LayoutSelectComboButton;
 	TSharedPtr<class SSubObjectAddArea> SubObjectAddArea;
-	TSharedPtr<SExpandableArea> ConfigArea;
+	TSharedPtr<SBorder> ConfigArea;
+	TSharedPtr<SCheckBox> SettingsOpenCheckBox;
 };
 
-TSharedRef<SDetailsWorkspace> CreateDetailsWorkSpace(FString InstanceName, bool bLoadInstanceLastLayout);
+TSharedRef<SDetailsWorkspace> CreateDetailsWorkSpace(FString InstanceName, bool bLoadInstanceLastLayout, bool bOpenWelcomeTabIfInitial);

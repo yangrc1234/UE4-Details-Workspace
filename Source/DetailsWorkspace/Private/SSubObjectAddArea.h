@@ -14,8 +14,6 @@ public:
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& Args);
-
-	TWeakObjectPtr<UObject> PendingObservedObject;
 private:
 	
 	FAddObjectConfirmed OnAddObjectConfirmed;

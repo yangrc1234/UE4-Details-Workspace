@@ -13,10 +13,12 @@ void SLayoutNameInputWindow::Construct(const FArguments& Args)
 
 	OnConfirmed = Args._OnConfirmed;
 
+	TSharedPtr<SEditableTextBox> Input;
+	
 	SetContent(
 		SNew(SVerticalBox)
 		+ SVerticalBox::Slot()[
-			  SNew(SEditableTextBox)
+			  SAssignNew(Input, SEditableTextBox)
                 .HintText(LOCTEXT("NewLayoutNameEditableTextHintText", "New layout name.."))
                 .OnTextChanged(FOnTextChanged::CreateSP(this, &SLayoutNameInputWindow::OnTextChanged))
                 .Text(this, &SLayoutNameInputWindow::GetText)
@@ -43,6 +45,17 @@ FReply SLayoutNameInputWindow::OnConfirmClicked()
 	OnConfirmed.ExecuteIfBound(InputContent);
 	RequestDestroyWindow();
 	return FReply::Handled();
+}
+
+/** Overridden from SWidget: Called when a key is pressed down - capturing copy */
+FReply SLayoutNameInputWindow::OnKeyDown( const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent )
+{
+	if (InKeyEvent.GetKey() == EKeys::Enter)
+	{
+		OnConfirmClicked();
+		return FReply::Handled();
+	}
+	return FReply::Unhandled();
 }
 
 #undef LOCTEXT_NAMESPACE

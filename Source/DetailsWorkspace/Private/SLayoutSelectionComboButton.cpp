@@ -14,30 +14,38 @@ void SLayoutSelectionComboButton::Construct(const FArguments& Arguments)
 		SNew(SHorizontalBox)
 		+ SHorizontalBox::Slot()[
 			SAssignNew(ComboButton, SComboButton)
-                    .OnGetMenuContent(
-				                                     FOnGetContent::CreateSP(
-					                                     this,
-					                                     &SLayoutSelectionComboButton::OnGetLayoutSelectMenuContent)
-			                                     )
-                    .ButtonContent()
+            .ButtonStyle(FEditorStyle::Get(), "FlatButton.Default")
+            .ContentPadding(2.0f)
+            .OnGetMenuContent(
+                 FOnGetContent::CreateSP(
+                     this,
+                     &SLayoutSelectionComboButton::OnGetLayoutSelectMenuContent)
+             )
+            .ButtonContent()
 			[
-				SNew(STextBlock).Text(Arguments._SelectedLayoutName)
-				                .MinDesiredWidth(150.0f)
+				SNew(STextBlock)
+				.Text(this, &SLayoutSelectionComboButton::GetLabel)
+				.MinDesiredWidth(150.0f)
+				.TextStyle(FEditorStyle::Get(), "FlatButton.DefaultTextStyle")
 			]
 			.VAlign(VAlign_Center)
 		]
 		.AutoWidth()
 	];
 
+	OnSelectedLayoutName = Arguments._SelectedLayoutName;
 	OnRenameLayout = Arguments._OnRenameLayout;
 	OnCreateNewLayout = Arguments._OnCreateNewLayout;
 	OnCreateNewLayoutByCopying = Arguments._OnCreateNewLayoutByCopying;
 	OnLayoutDeleteClicked = Arguments._OnLayoutDeleteClicked;
 	OnLayoutSelected = Arguments._OnLayoutSelected;
 }
-
-
 END_SLATE_FUNCTION_BUILD_OPTIMIZATION
+
+FText SLayoutSelectionComboButton::GetLabel() const
+{
+	return FText::Format(LOCTEXT("CurrentLayoutLabelFormat", "Layout: {0}"), OnSelectedLayoutName.Get());
+}
 
 void SLayoutSelectionComboButton::OnRowItemSelected(TSharedPtr<FLayoutRowItem> Layout, ESelectInfo::Type SelectInfo)
 {
@@ -79,10 +87,38 @@ TSharedRef<ITableRow> SLayoutSelectionComboButton::OnGenerateLayoutItemRow(TShar
 		];
 }
 
+
+void SLayoutSelectionComboButton::RefreshLayoutList()
+{
+	TSharedRef<SLayoutListView> ListView = 
+	SNew(SLayoutListView)
+            .OnGenerateRow(
+                                             SLayoutListView::FOnGenerateRow::CreateSP(
+                                                 this, &SLayoutSelectionComboButton::OnGenerateLayoutItemRow))
+            .ListItemsSource(&LayoutListItems)
+            .OnSelectionChanged(
+                                             SLayoutListView::FOnSelectionChanged::CreateSP(
+                                                 this, &SLayoutSelectionComboButton::OnRowItemSelected))
+            .SelectionMode(ESelectionMode::Type::Single);
+
+	auto LocalCollection = UDetailsWorkspaceProfile::GetOrCreateLocalUserProfile();
+	TArray<FString> LayoutNames;
+	LocalCollection->WorkspaceLayouts.GetKeys(LayoutNames);
+
+	LayoutListItems.Empty();
+	for (auto& LayoutName : LayoutNames)
+	{
+		if (SearchBox->GetText().IsEmptyOrWhitespace() || LayoutName.Contains(SearchBox->GetText().ToString()))
+			LayoutListItems.Add(MakeShared<FLayoutRowItem>(LayoutName));
+	}
+
+	LayoutsRoot->SetContent(ListView);
+}
+
 TSharedRef<SWidget> SLayoutSelectionComboButton::OnGetLayoutSelectMenuContent()
 {
-	FMenuBuilder MenuBuilder(true, nullptr, nullptr, true);
-
+	FMenuBuilder MenuBuilder(true, nullptr, nullptr, true, &FCoreStyle::Get(), false);
+	
 	// First area, list all available layout items, and corresponding "copy" and "delete" button.
 	MenuBuilder.BeginSection(NAME_None, LOCTEXT("NewLayout", "Create New Layout"));
 	MenuBuilder.AddMenuEntry(
@@ -110,28 +146,22 @@ TSharedRef<SWidget> SLayoutSelectionComboButton::OnGetLayoutSelectMenuContent()
 
 	MenuBuilder.BeginSection(NAME_None, LOCTEXT("Layouts", "Layouts"));
 	{
-		TSharedPtr<SLayoutListView> ListView;
-		SAssignNew(ListView, SLayoutListView)
-                .OnGenerateRow(
-                                                 SLayoutListView::FOnGenerateRow::CreateSP(
-                                                     this, &SLayoutSelectionComboButton::OnGenerateLayoutItemRow))
-                .ListItemsSource(&LayoutListItems)
-                .OnSelectionChanged(
-                                                 SLayoutListView::FOnSelectionChanged::CreateSP(
-                                                     this, &SLayoutSelectionComboButton::OnRowItemSelected))
-                .SelectionMode(ESelectionMode::Type::Single);
+		MenuBuilder.AddWidget(
+			SAssignNew(SearchBox, SSearchBox)
+			.OnTextChanged_Lambda([this](const FText& Val)
+			{
+				SearchBox->SetText(Val);
+				RefreshLayoutList();
+			}),
+			FText::GetEmpty(),
+			true,
+			false
+		);
 
-		auto LocalCollection = UDetailsWorkspaceProfile::GetOrCreateLocalUserProfile();
-		TArray<FString> LayoutNames;
-		LocalCollection->WorkspaceLayouts.GetKeys(LayoutNames);
+		SAssignNew(LayoutsRoot, SBox);
+		MenuBuilder.AddWidget(LayoutsRoot.ToSharedRef(), FText::GetEmpty(), false);
 
-		LayoutListItems.Empty();
-		for (auto& LayoutName : LayoutNames)
-		{
-			LayoutListItems.Add(MakeShared<FLayoutRowItem>(LayoutName));
-		}
-
-		MenuBuilder.AddWidget(ListView.ToSharedRef(), FText::GetEmpty(), false);
+		RefreshLayoutList();
 	}
 	MenuBuilder.EndSection();
 

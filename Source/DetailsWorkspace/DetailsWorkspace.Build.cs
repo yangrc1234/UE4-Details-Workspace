@@ -47,6 +47,7 @@ public class DetailsWorkspace : ModuleRules
 				"PropertyEditor",
 				"Sequencer",	
 				"MovieScene",
+				"LevelSequence"
 			}
 			);
 		
