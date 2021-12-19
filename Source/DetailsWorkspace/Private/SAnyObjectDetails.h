@@ -36,7 +36,7 @@ private:
 	void OnCategoryFilterCheckStateChanged(ECheckBoxState State, FName Category);
 	ECheckBoxState OnGetCategoryFilterCheckState(FName Category) const;
 	FLinearColor CategorySettingLabelColor(FName Category) const;
-	EVisibility CategorySettingLabelVisibility(FName Cateogry) const;
+	EVisibility CategorySettingLabelVisibility(FName Category) const;
 	void OnGetCategoryNames(TArray<FName> Val);
 
 	TSharedPtr<SBorder> CategoryFilterRoot;

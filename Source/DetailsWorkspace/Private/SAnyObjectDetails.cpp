@@ -14,6 +14,13 @@
 
 namespace
 {
+	FName RemapCategoryName(FName InName)
+	{
+		if (InName == TEXT("TransformCommon"))
+			return TEXT("Transform");
+		return InName;
+	}
+		
 	TArray<TWeakPtr<ISequencer>> Sequencers;
 	
 	class FKeyFrameHandler : public IDetailKeyframeHandler
@@ -114,6 +121,7 @@ namespace
 		{
 			TArray<FName> Categories;
 			DetailBuilder.GetCategoryNames(Categories);
+
 			if (OnGetCategories.IsBound())
 			{
 				OnGetCategories.Execute(Categories);
@@ -251,9 +259,10 @@ void SAnyObjectDetails::Construct(const FArguments& InArgs, FTabId InTabID)
 	DetailsView->RegisterInstancedCustomPropertyLayout(UObject::StaticClass(), FOnGetDetailCustomizationInstance::CreateLambda([this]()
     {
         auto t = MakeShared<FCustomDetailsLayout>();
-        t->OnGetCategoryVisibiliy = FCustomDetailsLayout::FOnGetCategoryVisibiliy::CreateLambda([this](FName Cateogry)
+        t->OnGetCategoryVisibiliy = FCustomDetailsLayout::FOnGetCategoryVisibiliy::CreateLambda([this](FName Category)
         {
-            return ObjectValue.CategorySettings.ShouldShow(Cateogry);
+        	Category = RemapCategoryName(Category);
+            return ObjectValue.CategorySettings.ShouldShow(Category);
         });
 		t->OnGetCategories = FCustomDetailsLayout::FOnGetCategories::CreateSP(this, &SAnyObjectDetails::OnGetCategoryNames);
         return t;
@@ -415,19 +424,19 @@ FLinearColor SAnyObjectDetails::CategorySettingLabelColor(FName Category) const
 	return OnGetCategoryFilterCheckState(Category) == ECheckBoxState::Checked ? FLinearColor::White : FLinearColor(0.5f, 0.5f, 0.5f);
 }
 
-EVisibility SAnyObjectDetails::CategorySettingLabelVisibility(FName Cateogry) const
+EVisibility SAnyObjectDetails::CategorySettingLabelVisibility(FName Category) const
 {
 	auto CurrentState = ObjectValue.CategorySettings.SettingsState;
 	if (CurrentState == EDetailsWorkspaceCategorySettingState::MultiSelectFilter)
 	{
-		if (Cateogry == CategoryAll)
+		if (Category == CategoryAll)
 			return EVisibility::Collapsed;
 		else
 			return EVisibility::Visible;
 	}
 	else if (CurrentState == EDetailsWorkspaceCategorySettingState::PickShowOnly)
 	{
-		if (ObjectValue.CategorySettings.HiddenCategories.Contains(Cateogry))
+		if (ObjectValue.CategorySettings.HiddenCategories.Contains(Category))
 			return EVisibility::Collapsed;
 		else
 			return EVisibility::Visible;
@@ -446,6 +455,17 @@ void SAnyObjectDetails::OnGetCategoryNames(TArray<FName> Val)
 	if (!bAvailableCategoriesDirty)
 		return;
 	bAvailableCategoriesDirty = false;
+
+	{
+		TArray<FName> Temp;
+		Temp.Reserve(Val.Num());
+		for(auto& Name : Val)
+		{
+			Temp.AddUnique(RemapCategoryName(Name));
+		}
+		Val = MoveTemp(Temp);
+	}
+	
 	AvailableCategories = Val;
 	auto Box = SNew(SWrapBox).UseAllottedSize(true);
 	AvailableCategories.Insert(CategoryAll, 0);
