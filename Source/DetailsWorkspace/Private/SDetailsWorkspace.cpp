@@ -20,13 +20,17 @@
 static FName WelcomePageTabID = TEXT("Welcome");
 static FName NormalTabID = TEXT("Normal");
 
-static TSharedRef<FTabManager::FLayout> InitialLayout(int InitialDetailTabCount = 16)
+static TSharedRef<FTabManager::FLayout> InitialLayout(int InitialDetailTabCount = 16, bool bContainWelcomeTab = true)
 {
 	auto t = FTabManager::NewPrimaryArea();
-	t->Split(
-        FTabManager::NewStack()
-        ->AddTab(WelcomePageTabID, ETabState::OpenedTab)
-	);
+
+	if (bContainWelcomeTab)
+	{
+		t->Split(
+	        FTabManager::NewStack()
+	        ->AddTab(WelcomePageTabID, ETabState::OpenedTab)
+		);
+	}
 
 	// We add some "closed" tabs.
 	// Though at this moment, tab spawner is not registered, this still works.
@@ -246,7 +250,7 @@ FText SDetailsWorkspace::GetLabel() const
 	return FText::FromString(WorkingLayoutName);
 }
 
-void SDetailsWorkspace::Construct(const FArguments& Args, FString InInstanceName, bool bLoadInstanceLastLayout)
+void SDetailsWorkspace::Construct(const FArguments& Args, FString InInstanceName, bool bLoadInstanceLastLayout, bool bOpenWelcomeTabIfInitial)
 {
 	this->InstanceName = InInstanceName;
 	
@@ -364,14 +368,14 @@ void SDetailsWorkspace::Construct(const FArguments& Args, FString InInstanceName
 	}
 	else
 	{
-		ResetLayoutToInitial();
+		ResetLayoutToInitial(bOpenWelcomeTabIfInitial);
 	}
 }
 
-void SDetailsWorkspace::ResetLayoutToInitial()
+void SDetailsWorkspace::ResetLayoutToInitial(bool bContainWelcomeTab)
 {
 	TabManager->CloseAllAreas();
-	TSharedRef<FTabManager::FLayout> Layout = InitialLayout();
+	TSharedRef<FTabManager::FLayout> Layout = InitialLayout(bContainWelcomeTab);
 	DockingTabsContainer->SetContent(
         TabManager->RestoreFrom(Layout, GetParentWindow()).ToSharedRef()
     );
@@ -527,13 +531,11 @@ TSharedRef<SDockTab> SDetailsWorkspace::CreateWelcomeTab(const FSpawnTabArgs& Ar
                 SNew(STextBlock)
                 .Text(LOCTEXT("WelcomeTabContent",
                 	"Drop any actor/asset here to start.\n"
-                	"If actor/asset has subobject(Component), a button will appear for choosing in config.\n"
+                	"If actor/asset has subobject(Component), a drop-down button will appear for choosing in config.\n"
                 	"\n"
                     "You can freely re-arrange created tabs in this panel.\n"
-                	"\n"
-                	"Switch layout in config.\n"
                     "\n"
-                    "Layout will be saved on you closing the window, or layout switched.\n"
+                    "Layout will be saved on you closing the window, or before switching layout.\n"
                     "\n"
                     "You can close this Welcome tab. It doesn't do anything.\n"
                 ))
@@ -641,9 +643,9 @@ void SDetailsWorkspace::SpawnNewDetailWidgetForObject(UObject* InObject)
 }
 
 
-TSharedRef<SDetailsWorkspace> CreateDetailsWorkSpace(FString InstanceName, bool bLoadInstanceLastLayout)
+TSharedRef<SDetailsWorkspace> CreateDetailsWorkSpace(FString InstanceName, bool bLoadInstanceLastLayout, bool bOpenWelcomeTabIfInitial)
 {
-	return SNew(SDetailsWorkspace, InstanceName, bLoadInstanceLastLayout);
+	return SNew(SDetailsWorkspace, InstanceName, bLoadInstanceLastLayout, bOpenWelcomeTabIfInitial);
 }
 
 #undef LOCTEXT_NAMESPACE

@@ -23,8 +23,6 @@ Currently it's only tested on 4.27. But it's mostly plain slate code, so I suppo
 * PIE object auto switch.  
 * Support Sequencer key frame button.  
     * Surprisingly UE4 doesn't automatically do this for you, if you create Details yourself.  
-* Will be maintained.
-    * I'm using this for serious purpose in my work.  
 
 ## How to Use  
 

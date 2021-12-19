@@ -107,7 +107,7 @@ void FDetailsWorkspaceModule::ShutdownModule()
 
 TSharedRef<SDockTab> FDetailsWorkspaceModule::OnSpawnPluginTab(const FSpawnTabArgs& SpawnTabArgs)
 {
-	return CreateDetailsWorkSpace(SpawnTabArgs.GetTabId().ToString(), true);
+	return CreateDetailsWorkSpace(SpawnTabArgs.GetTabId().ToString(), true,  true);
 }
 
 void FDetailsWorkspaceModule::PluginButtonClicked(int Index)
