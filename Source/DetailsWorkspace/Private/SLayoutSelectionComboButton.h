@@ -15,6 +15,7 @@ public:
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& Arguments);
+	FText GetLabel() const;
 
 private:
 	TSharedPtr<SComboButton> ComboButton;
@@ -23,6 +24,7 @@ private:
 	FSimpleDelegate OnCreateNewLayoutByCopying;
 	FOnLayoutOperation OnLayoutDeleteClicked;
 	FOnLayoutOperation OnLayoutSelected;
+	TAttribute<FText> OnSelectedLayoutName;
   
 	struct FLayoutRowItem : TSharedFromThis<FLayoutRowItem>
 	{

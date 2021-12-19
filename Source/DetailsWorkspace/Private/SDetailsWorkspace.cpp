@@ -2,6 +2,7 @@
 
 #include "DetailsWorkspaceProfile.h"
 #include "AssetToolsModule.h"
+#include "EditorFontGlyphs.h"
 #include "FileHelpers.h"
 #include "IContentBrowserSingleton.h"
 #include "SAnyObjectDetails.h"
@@ -49,62 +50,34 @@ static TSharedRef<FTabManager::FLayout> InitialLayout(int InitialDetailTabCount 
 
 TSharedRef<SWidget> SDetailsWorkspace::CreateConfigArea(const FDetailsWorkspaceInstanceSettings* Settings)
 {
-	SAssignNew(ConfigArea, SExpandableArea)
-		.HeaderContent()[
-			SNew(SHorizontalBox)
-			+ SHorizontalBox::Slot()[
-				SNew(STextBlock).Text(LOCTEXT("Config", "Config"))
-			]
-			.VAlign(VAlign_Center)
-			+ SHorizontalBox::Slot()[
-			    SAssignNew(SubObjectAddArea, SSubObjectAddArea)
-                .OnAddObjectConfirmed(SSubObjectAddArea::FAddObjectConfirmed::CreateSP(this, &SDetailsWorkspace::SpawnNewDetailWidgetForObject))
-                .OnVerifyObjectAddable(SSubObjectAddArea::FVerifyObjectAddable::CreateSP(this, &SDetailsWorkspace::IsNotObservingObject))
-            ]
-            .HAlign(HAlign_Right)
-            .VAlign(VAlign_Top)
-            .AutoWidth()
-		]
-		.BodyContent()[
-			
+	SAssignNew(ConfigArea, SBorder).Content()
+	[
 		SNew(SGridPanel)
-            .FillColumn(0, 0.2f)
-            .FillColumn(1, 0.8f)
-            + SGridPanel::Slot(0, 0)[
-                SNew(STextBlock).Text(LOCTEXT("LayoutLabel", "Layout"))
-            ].Padding(2.0f).VAlign(VAlign_Center)
-            + SGridPanel::Slot(1, 0)[	
-				SAssignNew(LayoutSelectComboButton, SLayoutSelectionComboButton)
-	            .OnLayoutDeleteClicked(this, &SDetailsWorkspace::DeleteLayoutWithDialog)
-	            .OnCreateNewLayout(this, &SDetailsWorkspace::CreateNewLayoutWithDialog)
-	            .OnCreateNewLayoutByCopying(this, &SDetailsWorkspace::CreateNewLayoutByCopyingWithDialog)
-	            .OnRenameLayout(this, &SDetailsWorkspace::CreateRenameCurrentLayoutWindow)
-	            .SelectedLayoutName(this, &SDetailsWorkspace::OnGetCurrentLayoutName)
-	            .OnLayoutSelected(this, &SDetailsWorkspace::SwitchLayout, true)
-	        ].Padding(2.0f).VAlign(VAlign_Center)
-	        
-            + SGridPanel::Slot(0, 2)[
-                SNew(STextBlock).Text(LOCTEXT("AutoSwitchPIE", "Auto Switch to PIE Object"))
-            ].Padding(2.0f).VAlign(VAlign_Center)
-            + SGridPanel::Slot(1, 2)[
-                SAssignNew(AutoPIECheckBox, SCheckBox)
-            ].Padding(2.0f).VAlign(VAlign_Center)
+        .FillColumn(0, 0.2f)
+        .FillColumn(1, 0.8f)
+        + SGridPanel::Slot(0, 2)[
+            SNew(STextBlock).Text(LOCTEXT("AutoSwitchPIE", "Auto Switch to PIE Object"))
+        ].Padding(2.0f).VAlign(VAlign_Center)
+        + SGridPanel::Slot(1, 2)[
+            SAssignNew(AutoPIECheckBox, SCheckBox)
+        ].Padding(2.0f).VAlign(VAlign_Center)
 
-            + SGridPanel::Slot(0, 3)[
-                SNew(STextBlock).Text(LOCTEXT("EnableDeveloperMode", "Enable Developer Mode"))
-            ].Padding(2.0f).VAlign(VAlign_Center)
-            + SGridPanel::Slot(1, 3)[
-                SAssignNew(DeveloperModeCheckerbox, SCheckBox)
-            ].Padding(2.0f).VAlign(VAlign_Center)
-            
-            + SGridPanel::Slot(0, 4).ColumnSpan(2)[
-            	SNew(SButton)
-            	.OnClicked(FOnClicked::CreateSP(this, &SDetailsWorkspace::CopyCurrentLayoutStringToClipboard))
-            	[
-					SNew(STextBlock).Text(LOCTEXT("CopyLayoutStringToClipboard", "Copy Layout String To Clipboard"))
-                ]
-            ].Padding(2.0f).VAlign(VAlign_Center)
-        ];
+        + SGridPanel::Slot(0, 3)[
+            SNew(STextBlock).Text(LOCTEXT("EnableDeveloperMode", "Enable Developer Mode"))
+        ].Padding(2.0f).VAlign(VAlign_Center)
+        + SGridPanel::Slot(1, 3)[
+            SAssignNew(DeveloperModeCheckerbox, SCheckBox)
+        ].Padding(2.0f).VAlign(VAlign_Center)
+        
+        + SGridPanel::Slot(0, 4).ColumnSpan(2)[
+            SNew(SButton)
+            .OnClicked(FOnClicked::CreateSP(this, &SDetailsWorkspace::CopyCurrentLayoutStringToClipboard))
+            [
+				SNew(STextBlock).Text(LOCTEXT("CopyLayoutStringToClipboard", "Copy Layout String To Clipboard"))
+            ]
+        ].Padding(2.0f).VAlign(VAlign_Center)
+    ]
+	.Visibility_Lambda([this](){ return SettingsOpenCheckBox->IsChecked() ? EVisibility::Visible : EVisibility::Collapsed; })	;
 
 	if (Settings)
 	{
@@ -112,7 +85,6 @@ TSharedRef<SWidget> SDetailsWorkspace::CreateConfigArea(const FDetailsWorkspaceI
 		DeveloperModeCheckerbox->SetIsChecked(Settings->bDeveloperMode);
 	}
 	AutoPIECheckBox->SetIsChecked(true);
-	ConfigArea->SetExpanded(false);
 	
 	return ConfigArea.ToSharedRef();
 }
@@ -323,13 +295,49 @@ void SDetailsWorkspace::Construct(const FArguments& Args, FString InInstanceName
 		    +SVerticalBox::Slot()
             [
             	SNew(SHorizontalBox)
-            	+ SHorizontalBox::Slot()[
-                    CreateConfigArea(Settings)
+				+SHorizontalBox::Slot()[
+					SAssignNew(LayoutSelectComboButton, SLayoutSelectionComboButton)
+					.OnLayoutDeleteClicked(this, &SDetailsWorkspace::DeleteLayoutWithDialog)
+					.OnCreateNewLayout(this, &SDetailsWorkspace::CreateNewLayoutWithDialog)
+					.OnCreateNewLayoutByCopying(this, &SDetailsWorkspace::CreateNewLayoutByCopyingWithDialog)
+					.OnRenameLayout(this, &SDetailsWorkspace::CreateRenameCurrentLayoutWindow)
+					.SelectedLayoutName(this, &SDetailsWorkspace::OnGetCurrentLayoutName)
+					.OnLayoutSelected(this, &SDetailsWorkspace::SwitchLayout, true)
+				]
+				.HAlign(HAlign_Left)
+				.AutoWidth()
+				.Padding(2.0f)
+                + SHorizontalBox::Slot()[
+                    SAssignNew(SubObjectAddArea, SSubObjectAddArea)
+                    .OnAddObjectConfirmed(SSubObjectAddArea::FAddObjectConfirmed::CreateSP(this, &SDetailsWorkspace::SpawnNewDetailWidgetForObject))
+                    .OnVerifyObjectAddable(SSubObjectAddArea::FVerifyObjectAddable::CreateSP(this, &SDetailsWorkspace::IsNotObservingObject))
                 ]
-            	.HAlign(HAlign_Fill)
+                .HAlign(HAlign_Left)
+                .AutoWidth()
+                .Padding(2.0f)
+                
+                + SHorizontalBox::Slot()
                 .FillWidth(1.0f)
+                
+                + SHorizontalBox::Slot()[
+                	SAssignNew(SettingsOpenCheckBox, SCheckBox)
+                	.Style(&FCoreStyle::Get().GetWidgetStyle<FCheckBoxStyle>("ToggleButtonCheckbox"))
+                    [
+                        SNew(STextBlock)
+                        .Font(FEditorStyle::Get().GetFontStyle("FontAwesome.11"))
+                        .Text(FEditorFontGlyphs::Cog)
+                        .ShadowOffset(FVector2D(1.0f, 1.0f))
+                    ]
+                ]
+                .HAlign(HAlign_Right)
+                .VAlign(VAlign_Center)
             ]
             .Padding(2.0f)
+            .AutoHeight()
+            +SVerticalBox::Slot()
+            [	
+				CreateConfigArea(Settings)
+            ]
             .AutoHeight()
 		    +SVerticalBox::Slot()
 		    .FillHeight( 1.0f )

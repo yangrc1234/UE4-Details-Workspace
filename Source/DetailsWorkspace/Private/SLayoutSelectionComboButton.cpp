@@ -14,30 +14,37 @@ void SLayoutSelectionComboButton::Construct(const FArguments& Arguments)
 		SNew(SHorizontalBox)
 		+ SHorizontalBox::Slot()[
 			SAssignNew(ComboButton, SComboButton)
-                    .OnGetMenuContent(
-				                                     FOnGetContent::CreateSP(
-					                                     this,
-					                                     &SLayoutSelectionComboButton::OnGetLayoutSelectMenuContent)
-			                                     )
-                    .ButtonContent()
+            .ButtonStyle(FEditorStyle::Get(), "FlatButton.Default")
+            .OnGetMenuContent(
+                 FOnGetContent::CreateSP(
+                     this,
+                     &SLayoutSelectionComboButton::OnGetLayoutSelectMenuContent)
+             )
+            .ButtonContent()
 			[
-				SNew(STextBlock).Text(Arguments._SelectedLayoutName)
-				                .MinDesiredWidth(150.0f)
+				SNew(STextBlock)
+				.Text(this, &SLayoutSelectionComboButton::GetLabel)
+				.MinDesiredWidth(150.0f)
+				.TextStyle(FEditorStyle::Get(), "FlatButton.DefaultTextStyle")
 			]
 			.VAlign(VAlign_Center)
 		]
 		.AutoWidth()
 	];
 
+	OnSelectedLayoutName = Arguments._SelectedLayoutName;
 	OnRenameLayout = Arguments._OnRenameLayout;
 	OnCreateNewLayout = Arguments._OnCreateNewLayout;
 	OnCreateNewLayoutByCopying = Arguments._OnCreateNewLayoutByCopying;
 	OnLayoutDeleteClicked = Arguments._OnLayoutDeleteClicked;
 	OnLayoutSelected = Arguments._OnLayoutSelected;
 }
-
-
 END_SLATE_FUNCTION_BUILD_OPTIMIZATION
+
+FText SLayoutSelectionComboButton::GetLabel() const
+{
+	return FText::Format(LOCTEXT("CurrentLayoutLabelFormat", "Layout: {0}"), OnSelectedLayoutName.Get());
+}
 
 void SLayoutSelectionComboButton::OnRowItemSelected(TSharedPtr<FLayoutRowItem> Layout, ESelectInfo::Type SelectInfo)
 {

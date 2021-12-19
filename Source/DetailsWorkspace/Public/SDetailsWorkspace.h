@@ -89,7 +89,8 @@ private:
 	TSharedPtr<SCheckBox> AutoPIECheckBox;
 	TSharedPtr<SCompoundWidget> LayoutSelectComboButton;
 	TSharedPtr<class SSubObjectAddArea> SubObjectAddArea;
-	TSharedPtr<SExpandableArea> ConfigArea;
+	TSharedPtr<SBorder> ConfigArea;
+	TSharedPtr<SCheckBox> SettingsOpenCheckBox;
 };
 
 TSharedRef<SDetailsWorkspace> CreateDetailsWorkSpace(FString InstanceName, bool bLoadInstanceLastLayout);
