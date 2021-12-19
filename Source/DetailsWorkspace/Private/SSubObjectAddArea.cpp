@@ -17,6 +17,7 @@ void SSubObjectAddArea::Construct(const FArguments& Args)
 		[
 			SNew(SComboButton)
 	        .OnGetMenuContent(FOnGetContent::CreateSP(this, &SSubObjectAddArea::CreateDetailForObjectMenu))
+	        .ContentPadding(2.0f)
 	        .ButtonContent()
 			[
 				SNew(STextBlock)

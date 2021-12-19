@@ -15,6 +15,7 @@ void SLayoutSelectionComboButton::Construct(const FArguments& Arguments)
 		+ SHorizontalBox::Slot()[
 			SAssignNew(ComboButton, SComboButton)
             .ButtonStyle(FEditorStyle::Get(), "FlatButton.Default")
+            .ContentPadding(2.0f)
             .OnGetMenuContent(
                  FOnGetContent::CreateSP(
                      this,
