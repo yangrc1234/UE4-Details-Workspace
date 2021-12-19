@@ -25,21 +25,23 @@ private:
 	FOnLayoutOperation OnLayoutDeleteClicked;
 	FOnLayoutOperation OnLayoutSelected;
 	TAttribute<FText> OnSelectedLayoutName;
-  
+	TSharedPtr<SSearchBox> SearchBox;
+	TSharedPtr<SBox> LayoutsRoot;
 	struct FLayoutRowItem : TSharedFromThis<FLayoutRowItem>
 	{
 		FLayoutRowItem(FString InLayoutName) {	LayoutName = InLayoutName;	}
 		FString LayoutName;
 	}; 
-	typedef SListView< TSharedPtr< FLayoutRowItem > > SLayoutListView;
 	TArray< TSharedPtr<FLayoutRowItem> > LayoutListItems;
-
+	typedef SListView< TSharedPtr< FLayoutRowItem > > SLayoutListView;
+	
 	void OnRowItemSelected(TSharedPtr<FLayoutRowItem> Layout, ESelectInfo::Type SelectInfo);
 
 	FReply OnLayoutDeleteButton(FString LayoutName);
 
 	TSharedRef<ITableRow> OnGenerateLayoutItemRow(TSharedPtr<FLayoutRowItem> InItem,
 	                                              const TSharedRef<STableViewBase>& OwnerTable);
+	void RefreshLayoutList();
 
 	TSharedRef<SWidget> OnGetLayoutSelectMenuContent();
 };
