@@ -1,8 +1,12 @@
 ﻿# Changelog
 
+## 0.3.1
+### Fixed  
+- Fixed some typo in changelog/readme
+
 ## 0.3.0
 ### Added
-- By default, 4 DetailsWorkspace window can be opened by default.  
+- By default, 4 DetailsWorkspace window can be opened.  
 - Add a search box to layout selection.
 
 ### Changed  
