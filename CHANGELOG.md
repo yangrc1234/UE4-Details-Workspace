@@ -1,5 +1,10 @@
 ﻿# Changelog
 
+## 0.3.1  
+### Fixed
+- Fixed all CallInEditor UFUNCTION not showing up.  
+- Fixed object name in  "Add Selected..." is not ActorLabel.  
+
 ## 0.3.0
 ### Added
 - By default, 4 DetailsWorkspace window can be opened by default.  
