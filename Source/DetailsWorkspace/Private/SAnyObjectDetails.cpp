@@ -2,7 +2,7 @@
 
 
 
-#include "BlueprintEditorUtils.h"
+#include "Kismet2/BlueprintEditorUtils.h"
 #include "DetailLayoutBuilder.h"
 #include "EditorFontGlyphs.h"
 #include "IDetailCustomization.h"
