@@ -49,4 +49,4 @@ Currently it's only tested on 4.27. But it's mostly plain slate code, so I suppo
    * This is UE4 limitation, and might can't be "fixed".  
 * Once you add an object to the layout, the level package might be marked dirty(Ask you to save before exit). You must save it, otherwise reference could be lost next time you open the level.     
     * This is because we use LazyObjectPtr to store the reference, which might edit the object in level to store a persistent GUID. 
-* The layout info is saved under you developer folder("Devvelopers/\[YourUserName\]/DetailsWorkspaceLayoutProfile).  
+* The layout info is saved under you developer folder("Developers/\[YourUserName\]/DetailsWorkspaceLayoutProfile).  

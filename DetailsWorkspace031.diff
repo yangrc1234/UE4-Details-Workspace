@@ -1,0 +1,248 @@
+From cc1bd79fd68bcd88df6b1b4ddd248bc84189e3c6 Mon Sep 17 00:00:00 2001
+From: yangrc <21751230@zju.edu.cn>
+Date: Wed, 26 Jan 2022 11:18:49 +0800
+Subject: [PATCH] Minor fix.
+
+---
+ CHANGELOG.md                                  |   5 +
+ .../DetailsWorkspace.Build.cs                 |   3 +-
+ .../Private/SAnyObjectDetails.cpp             | 165 ++++++++++++++++++
+ .../Private/SSubObjectAddArea.cpp             |   2 +-
+ 4 files changed, 173 insertions(+), 2 deletions(-)
+
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index d3c9d94..a051846 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -1,5 +1,10 @@
+ ﻿# Changelog
+ 
++## 0.3.1  
++### Fixed
++- Fixed all CallInEditor UFUNCTION not showing up.  
++- Fixed object name in  "Add Selected..." is not ActorLabel.  
++
+ ## 0.3.0
+ ### Added
+ - By default, 4 DetailsWorkspace window can be opened by default.  
+diff --git a/Source/DetailsWorkspace/DetailsWorkspace.Build.cs b/Source/DetailsWorkspace/DetailsWorkspace.Build.cs
+index a324c8e..9dadb16 100644
+--- a/Source/DetailsWorkspace/DetailsWorkspace.Build.cs
++++ b/Source/DetailsWorkspace/DetailsWorkspace.Build.cs
+@@ -47,7 +47,8 @@ public class DetailsWorkspace : ModuleRules
+ 				"PropertyEditor",
+ 				"Sequencer",	
+ 				"MovieScene",
+-				"LevelSequence"
++				"LevelSequence",
++				"BlueprintGraph",
+ 			}
+ 			);
+ 		
+diff --git a/Source/DetailsWorkspace/Private/SAnyObjectDetails.cpp b/Source/DetailsWorkspace/Private/SAnyObjectDetails.cpp
+index c0260b6..794f766 100644
+--- a/Source/DetailsWorkspace/Private/SAnyObjectDetails.cpp
++++ b/Source/DetailsWorkspace/Private/SAnyObjectDetails.cpp
+@@ -1,6 +1,8 @@
+ ﻿#include "SAnyObjectDetails.h"
+ 
+ 
++
++#include "BlueprintEditorUtils.h"
+ #include "DetailLayoutBuilder.h"
+ #include "EditorFontGlyphs.h"
+ #include "IDetailCustomization.h"
+@@ -8,6 +10,8 @@
+ #include "MovieSceneSequence.h"
+ #include "Engine/Selection.h"
+ #include "LevelSequence.h"
++#include "DetailCategoryBuilder.h"
++#include "DetailWidgetRow.h"
+ 
+ #define LOCTEXT_NAMESPACE "DetailsWorkSpace"
+ 
+@@ -133,7 +137,168 @@ namespace
+ 					DetailBuilder.HideCategory(t);
+ 				}
+ 			}
++			AddCallInEditorMethods(DetailBuilder);
++		}
++
++		FReply OnExecuteCallInEditorFunction(TWeakObjectPtr<UFunction> WeakFunctionPtr)
++		{
++			if (UFunction* Function = WeakFunctionPtr.Get())
++			{
++				//@TODO: Consider naming the transaction scope after the fully qualified function name for better UX
++				FScopedTransaction Transaction(LOCTEXT("ExecuteCallInEditorMethod", "Call In Editor Action"));
++
++				FEditorScriptExecutionGuard ScriptGuard;
++				for (TWeakObjectPtr<UObject> SelectedObjectPtr : SelectedObjectsList)
++				{
++					if (UObject* Object = SelectedObjectPtr.Get())
++					{
++						Object->ProcessEvent(Function, nullptr);
++					}
++				}
++			}
++
++			return FReply::Handled();
++		}
++
++		void AddCallInEditorMethods(IDetailLayoutBuilder& DetailBuilder)
++		{
++			// metadata tag for defining sort order of function buttons within a Category
++			static const FName NAME_DisplayPriority("DisplayPriority");
++
++			// Get all of the functions we need to display (done ahead of time so we can sort them)
++			TArray<UFunction*, TInlineAllocator<8>> CallInEditorFunctions;
++			for (TFieldIterator<UFunction> FunctionIter(DetailBuilder.GetBaseClass(), EFieldIteratorFlags::IncludeSuper); FunctionIter; ++FunctionIter)
++			{
++				UFunction* TestFunction = *FunctionIter;
++
++				if (TestFunction->GetBoolMetaData(FBlueprintMetadata::MD_CallInEditor) && (TestFunction->ParmsSize == 0))
++				{
++					if (UClass* TestFunctionOwnerClass = TestFunction->GetOwnerClass())
++					{
++						if (UBlueprint* Blueprint = Cast<UBlueprint>(TestFunctionOwnerClass->ClassGeneratedBy))
++						{
++							if (FBlueprintEditorUtils::IsEditorUtilityBlueprint(Blueprint))
++							{
++								// Skip Blutilities as these are handled by FEditorUtilityInstanceDetails
++								continue;
++							}
++						}
++					}
++
++					const FName FunctionName = TestFunction->GetFName();
++					if (!CallInEditorFunctions.FindByPredicate([&FunctionName](const UFunction* Func) { return Func->GetFName() == FunctionName; }))
++					{
++						CallInEditorFunctions.Add(*FunctionIter);
++					}
++				}
++			}
++
++			if (CallInEditorFunctions.Num() > 0)
++			{
++				// Copy off the objects being customized so we can invoke a function on them later, removing any that are a CDO
++				DetailBuilder.GetObjectsBeingCustomized(/*out*/ SelectedObjectsList);
++				SelectedObjectsList.RemoveAllSwap([](TWeakObjectPtr<UObject> ObjPtr) { UObject* Obj = ObjPtr.Get(); return (Obj == nullptr) || Obj->HasAnyFlags(RF_ArchetypeObject); });
++				if (SelectedObjectsList.Num() == 0)
++				{
++					return;
++				}
++
++				// Sort the functions by category and then by DisplayPriority meta tag, and then by name
++				CallInEditorFunctions.Sort([](UFunction& A, UFunction& B)
++				{
++					const int32 CategorySort = A.GetMetaData(FBlueprintMetadata::MD_FunctionCategory).Compare(B.GetMetaData(FBlueprintMetadata::MD_FunctionCategory));
++					if (CategorySort != 0)
++					{
++						return (CategorySort <= 0);
++					}
++					else
++					{
++						FString DisplayPriorityAStr = A.GetMetaData(NAME_DisplayPriority);
++						int32 DisplayPriorityA = (DisplayPriorityAStr.IsEmpty() ? MAX_int32 : FCString::Atoi(*DisplayPriorityAStr));
++						if (DisplayPriorityA == 0 && !FCString::IsNumeric(*DisplayPriorityAStr))
++						{
++							DisplayPriorityA = MAX_int32;
++						}
++
++						FString DisplayPriorityBStr = B.GetMetaData(NAME_DisplayPriority);
++						int32 DisplayPriorityB = (DisplayPriorityBStr.IsEmpty() ? MAX_int32 : FCString::Atoi(*DisplayPriorityBStr));
++						if (DisplayPriorityB == 0 && !FCString::IsNumeric(*DisplayPriorityBStr))
++						{
++							DisplayPriorityB = MAX_int32;
++						}
++
++						return (DisplayPriorityA == DisplayPriorityB) ? (A.GetName() <= B.GetName()) : (DisplayPriorityA <= DisplayPriorityB);
++					}
++				});
++
++				struct FCategoryEntry
++				{
++					FName CategoryName;
++					TSharedPtr<SWrapBox> WrapBox;
++					FTextBuilder FunctionSearchText;
++
++					FCategoryEntry(FName InCategoryName)
++						: CategoryName(InCategoryName)
++					{
++						WrapBox = SNew(SWrapBox).UseAllottedSize(true);
++					}
++				};
++
++				// Build up a set of functions for each category, accumulating search text and buttons in a wrap box
++				FName ActiveCategory;
++				TArray<FCategoryEntry, TInlineAllocator<8>> CategoryList;
++				for (UFunction* Function : CallInEditorFunctions)
++				{
++					FName FunctionCategoryName(NAME_Default);
++					if (Function->HasMetaData(FBlueprintMetadata::FBlueprintMetadata::MD_FunctionCategory))
++					{
++						FunctionCategoryName = FName(*Function->GetMetaData(FBlueprintMetadata::MD_FunctionCategory));
++					}
++
++					if (FunctionCategoryName != ActiveCategory)
++					{
++						ActiveCategory = FunctionCategoryName;
++						CategoryList.Emplace(FunctionCategoryName);
++					}
++					FCategoryEntry& CategoryEntry = CategoryList.Last();
++
++					//@TODO: Expose the code in UK2Node_CallFunction::GetUserFacingFunctionName / etc...
++					const FText ButtonCaption = FText::FromString(FName::NameToDisplayString(*Function->GetName(), false));
++					FText FunctionTooltip = Function->GetToolTipText();
++					if (FunctionTooltip.IsEmpty())
++					{
++						FunctionTooltip = FText::FromString(Function->GetName());
++					}
++
++
++					TWeakObjectPtr<UFunction> WeakFunctionPtr(Function);
++					CategoryEntry.WrapBox->AddSlot()
++					.Padding(0.0f, 0.0f, 5.0f, 3.0f)
++					[
++						SNew(SButton)
++						.Text(ButtonCaption)
++						.OnClicked(FOnClicked::CreateSP(this, &FCustomDetailsLayout::OnExecuteCallInEditorFunction, WeakFunctionPtr))
++						.ToolTipText(FText::Format(LOCTEXT("CallInEditorTooltip", "Call an event on the selected object(s)\n\n\n{0}"), FunctionTooltip))
++					];
++
++					CategoryEntry.FunctionSearchText.AppendLine(ButtonCaption);
++					CategoryEntry.FunctionSearchText.AppendLine(FunctionTooltip);
++				}
++
++				// Now edit the categories, adding the button strips to the details panel
++				for (FCategoryEntry& CategoryEntry : CategoryList)
++				{
++					IDetailCategoryBuilder& CategoryBuilder = DetailBuilder.EditCategory(CategoryEntry.CategoryName);
++					CategoryBuilder.AddCustomRow(CategoryEntry.FunctionSearchText.ToText())
++					[
++						CategoryEntry.WrapBox.ToSharedRef()
++					];
++				}
++			}
+ 		}
++	private:
++		// The list of selected objects, used when invoking a CallInEditor method
++		TArray<TWeakObjectPtr<UObject>> SelectedObjectsList;
+ 	};
+ }
+ 
+diff --git a/Source/DetailsWorkspace/Private/SSubObjectAddArea.cpp b/Source/DetailsWorkspace/Private/SSubObjectAddArea.cpp
+index 2a66dce..4059047 100644
+--- a/Source/DetailsWorkspace/Private/SSubObjectAddArea.cpp
++++ b/Source/DetailsWorkspace/Private/SSubObjectAddArea.cpp
+@@ -56,7 +56,7 @@ TSharedRef<SWidget> SSubObjectAddArea::CreateDetailForObjectMenu()
+ 		if (!OnVerifyObjectAddable.IsBound() || OnVerifyObjectAddable.Execute(Object))
+ 		{
+ 			MenuBuilder.AddMenuEntry(
+-				FText::Format(LOCTEXT("AddObjectName", "Add {0}"), FText::FromString(Object->GetName())),
++				FText::Format(LOCTEXT("AddObjectName", "Add {0}"), FText::FromString(GetPrettyNameForDetailsWorkspaceObject(Object))),
+ 				FText::GetEmpty(),
+ 				FSlateIcon(),
+ 				FUIAction(FExecuteAction::CreateSP(this, &SSubObjectAddArea::SpawnNewDetailWidgetForObject, Object))
+-- 
+2.34.0.windows.1
+

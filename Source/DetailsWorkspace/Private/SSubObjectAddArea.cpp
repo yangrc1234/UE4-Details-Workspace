@@ -56,7 +56,7 @@ TSharedRef<SWidget> SSubObjectAddArea::CreateDetailForObjectMenu()
 		if (!OnVerifyObjectAddable.IsBound() || OnVerifyObjectAddable.Execute(Object))
 		{
 			MenuBuilder.AddMenuEntry(
-				FText::Format(LOCTEXT("AddObjectName", "Add {0}"), FText::FromString(Object->GetName())),
+				FText::Format(LOCTEXT("AddObjectName", "Add {0}"), FText::FromString(GetPrettyNameForDetailsWorkspaceObject(Object))),
 				FText::GetEmpty(),
 				FSlateIcon(),
 				FUIAction(FExecuteAction::CreateSP(this, &SSubObjectAddArea::SpawnNewDetailWidgetForObject, Object))
