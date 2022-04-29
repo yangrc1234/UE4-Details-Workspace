@@ -65,6 +65,14 @@ TSharedRef<SWidget> SSubObjectAddArea::CreateDetailForObjectMenu()
 
 		TArray<UObject*> SubObjects;
 		Object->GetDefaultSubobjects(SubObjects);
+		if (auto Actor = Cast<AActor>(Object))
+		{
+			for (auto Comp : Actor->GetComponents())
+			{
+				if (Comp)
+					SubObjects.AddUnique(Comp);
+			}
+		}
 
 		for (auto& t : SubObjects)
 		{
