@@ -1,9 +1,13 @@
 ﻿# Changelog
 
-## 0.3.1  
+## 0.3.2 
 ### Fixed
 - Fixed all CallInEditor UFUNCTION not showing up.  
 - Fixed object name in  "Add Selected..." is not ActorLabel.  
+
+## 0.3.1
+### Fixed  
+- Fixed some typo in changelog/readme
 
 ## 0.3.0
 ### Added
