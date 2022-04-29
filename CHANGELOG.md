@@ -1,5 +1,13 @@
 ﻿# Changelog
 
+## 0.3.4
+### Fixed
+- Fixed some components (e.g. those on on ALandscape) won't show up in Add menu.
+
+## 0.3.3
+### Fixed
+- Fix compiling on 4.26
+
 ## 0.3.2 
 ### Fixed
 - Fixed all CallInEditor UFUNCTION not showing up.  
